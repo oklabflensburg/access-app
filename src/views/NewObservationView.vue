@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import AccessibilityForm from "../components/AccessibilityForm.vue";
 import LocationDetails from "../components/LocationDetails.vue";
+import ManualLocationForm from "../components/ManualLocationForm.vue";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
 import { emptyAccessibility } from "../types/observation";
@@ -33,6 +34,10 @@ const error = ref("");
 
 async function captureLocation() {
   location.value = await locationStore.locate();
+}
+function useManualLocation(selected: LocationData) {
+  locationStore.setManualLocation(selected);
+  location.value = { ...selected };
 }
 onMounted(async () => {
   if (!editing) {
@@ -121,6 +126,10 @@ async function save(draft = false) {
       <p v-if="locationStore.error" class="error" role="alert">
         {{ locationStore.error }}
       </p>
+      <ManualLocationForm
+        v-if="locationStore.error && !location"
+        @selected="useManualLocation"
+      />
       <LocationDetails v-if="location" :location="location" />
       <button
         class="secondary"

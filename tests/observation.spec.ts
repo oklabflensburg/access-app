@@ -146,6 +146,82 @@ test("denied location is explained and retry preserves answers", async ({
   ).toBeEnabled();
 });
 
+test("temporarily unavailable location falls back to a network position", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    let attempts = 0;
+    Object.defineProperty(navigator, "geolocation", {
+      value: {
+        getCurrentPosition(
+          success: PositionCallback,
+          failure: PositionErrorCallback,
+          options?: PositionOptions,
+        ) {
+          if (attempts++ === 0) {
+            failure({
+              code: 2,
+              POSITION_UNAVAILABLE: 2,
+            } as GeolocationPositionError);
+            return;
+          }
+          if (options?.enableHighAccuracy)
+            throw new Error("Fallback should use normal accuracy");
+          success({
+            coords: {
+              latitude: 52.52,
+              longitude: 13.405,
+              accuracy: 75,
+              altitude: null,
+              altitudeAccuracy: null,
+              heading: null,
+              speed: null,
+            },
+            timestamp: Date.now(),
+          } as GeolocationPosition);
+        },
+      },
+    });
+  });
+
+  await page.goto("/observation/new");
+  await expect(page.getByText("52.520000, 13.405000")).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Save observation on this device" }),
+  ).toBeEnabled();
+});
+
+test("manual coordinates allow collection when CoreLocation stays unavailable", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "geolocation", {
+      value: {
+        getCurrentPosition(
+          _success: PositionCallback,
+          failure: PositionErrorCallback,
+        ) {
+          failure({ code: 2 } as GeolocationPositionError);
+        },
+      },
+    });
+  });
+
+  await page.goto("/observation/new");
+  await expect(page.getByRole("alert")).toContainText(
+    "temporarily unavailable",
+  );
+  await page.getByLabel("Latitude").fill("52.5208");
+  await page.getByLabel("Longitude").fill("13.4095");
+  await page.getByRole("button", { name: "Use these coordinates" }).click();
+
+  await expect(page.getByText("52.520800, 13.409500")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Save observation on this device" }),
+  ).toBeEnabled();
+});
+
 test("saves locally while offline without duplicate submissions", async ({
   page,
   context,

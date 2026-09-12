@@ -1,541 +1,210 @@
-1. Goal
-
-Build a mobile-first PWA for collecting accessibility data for a public map.
-
-Users should be able to:
-
-see their current location
-create an accessibility observation
-answer a small questionnaire
-optionally collect sensor data
-add photos
-save observations offline
-sync them to a backend later
-2. Tech stack
-
-Frontend:
-
-Vue 3
-TypeScript
-Vite
-Vue Router
-Pinia
-Leaflet
-OpenStreetMap
-IndexedDB
-Dexie
-Vite PWA plugin
-
-Backend:
-
-PHP REST API
-PostgreSQL
-PostGIS if geographic queries are needed
-local filesystem or object storage for photos
-
-No user accounts required for MVP.
-
-3. MVP features
-   Phase 1 — App foundation
-
-Create:
-
-Vue 3
-TypeScript
-Vite
-Vue Router
-Pinia
-PWA support
-
-Basic pages:
-
-/
-MapView
-
-/observation/new
-NewObservationView
-
-/observations
-MyObservationsView
-4. Map
-
-Use Leaflet + OpenStreetMap.
-
-Features:
-
-request location permission
-show user's current location
-show GPS accuracy
-show altitude when available
-center map on user
-show saved observations as markers
-
-Example:
-
-Latitude
-Longitude
-Accuracy
-Altitude
-Timestamp
-5. Create observation
-
-User taps:
-
-+ Add accessibility information
-
-Store location automatically.
-
-Basic questionnaire:
-
-Wheelchair accessible?
-Yes / No / Unknown
-
-Steps at entrance?
-0 / 1 / 2 / 3+
-
-Ramp available?
-Yes / No / Unknown
-
-Accessible toilet?
-Yes / No / Unknown
-
-Elevator available?
-Yes / No / Unknown
-
-Surface:
-Smooth
-Uneven
-Cobblestone
-Gravel
-Other
-
-Comment
-
-Keep this short for the MVP.
-
-6. Sensor architecture
-
-Do not access sensors directly from Vue components.
-
-Create services/composables:
-
-src/services/
-geolocation.ts
-noise.ts
-motion.ts
-camera.ts
-storage.ts
-api.ts
-
-And optionally:
-
-src/composables/
-useGeolocation.ts
-useNoiseMeasurement.ts
-useMotionMeasurement.ts
-
-This makes it easier to replace browser APIs with native APIs later.
-
-7. GPS
-
-Use the browser Geolocation API.
-
-Store:
-
-{
-latitude,
-longitude,
-accuracy,
-altitude,
-altitudeAccuracy,
-heading,
-speed,
-timestamp
-}
-
-All fields except latitude/longitude may be unavailable.
-
-8. Noise measurement
-
-Use:
-
-getUserMedia()
-Web Audio API
-AnalyserNode
-
-Never store audio.
-
-Calculate only values like:
-
-{
-averageLevel,
-peakLevel,
-duration
-}
-
-Initially treat this as:
-
-relative noise level
-
-Not calibrated dB.
-
-Example categories could later be:
-
-quiet
-moderate
-loud
-very loud
-9. Motion sensors
-
-Potentially collect:
-
-accelerometer
-gyroscope
-device orientation
-
-Possible future uses:
-
-detecting rough surfaces
-estimating vibration
-detecting steep ramps
-estimating route comfort
-
-For MVP, just collect raw values.
-
-Do not try to automatically classify wheelchair accessibility yet.
-
-Example:
-
-{
-accelerationX,
-accelerationY,
-accelerationZ,
-rotationAlpha,
-rotationBeta,
-rotationGamma,
-timestamp
-}
-10. Light sensor
-
-Support ambient-light sensors only when available.
-
-Because browser support is poor, this must be optional.
-
-The application should behave normally when the sensor is unavailable.
-
-Later you could also estimate brightness through the camera.
-
-11. Photos
-
-Allow users to photograph:
-
-entrances
-stairs
-ramps
-elevators
-toilets
-pathways
-obstacles
-
-Requirements:
-
-camera/file picker
-image preview
-resize before storing/uploading
-optionally remove EXIF metadata
-12. Offline-first storage
-
-Every observation should first be saved locally.
-
-Use IndexedDB through Dexie.
-
-Possible status:
-
-draft
-ready
-syncing
-synced
-failed
-
-Example model:
-
-interface Observation {
-id: string;
-
-createdAt: string;
-
-location: LocationData;
-
-accessibility: AccessibilityData;
-
-noise?: NoiseMeasurement;
-
-motion?: MotionMeasurement[];
-
-photos?: Photo[];
-
-comment?: string;
-
-syncStatus: 'draft' | 'ready' | 'syncing' | 'synced' | 'failed';
-}
-13. Pinia
-
-Use Pinia for application state such as:
-
-current location
-active observation
-sync state
-application settings
-
-Do not store large sensor datasets or photos directly in Pinia.
-
-Store those in IndexedDB.
-
-14. Backend API
-
-Initial endpoints:
-
-POST /api/observations
-
-GET /api/observations
-
-GET /api/observations/{id}
-
-POST /api/observations/{id}/photos
-
-Later:
-
-GET /api/observations?bbox=...
-
-This allows the map to load observations within the visible area.
-
-15. Example API payload
-    {
-    "id": "uuid",
-    "createdAt": "2026-09-09T17:30:00Z",
-
-"location": {
-"latitude": 52.5201,
-"longitude": 13.4049,
-"accuracy": 8,
-"altitude": 34
-},
-
-"accessibility": {
-"wheelchairAccessible": true,
-"steps": 0,
-"ramp": true,
-"accessibleToilet": false,
-"elevator": null,
-"surface": "smooth"
-},
-
-"noise": {
-"averageLevel": 0.32,
-"peakLevel": 0.71,
-"duration": 10
-},
-
-"comment": "Entrance accessible from the side."
-}
-16. Project structure
-    src/
-
-components/
-Map.vue
-ObservationMarker.vue
-AccessibilityForm.vue
-NoiseMeasurement.vue
-PhotoCapture.vue
-
-views/
-MapView.vue
-NewObservationView.vue
-MyObservationsView.vue
-
-composables/
-useGeolocation.ts
-useNoiseMeasurement.ts
-useMotionMeasurement.ts
-
-services/
-geolocation.ts
-noise.ts
-motion.ts
-camera.ts
-storage.ts
-api.ts
-sync.ts
-
-stores/
-location.ts
-observation.ts
-sync.ts
-
-types/
-observation.ts
-location.ts
-sensors.ts
-
-router/
-index.ts
-17. Implementation order for the coding LLM
-    Milestone 1
-
-Only build:
-
-Open application
-
-→ request GPS permission
-
-→ display map
-
-→ display current position
-
-→ click "Add observation"
-
-→ answer accessibility questionnaire
-
-→ save observation to IndexedDB
-
-→ show observation marker
-
-Do not implement sensors yet.
-
-Milestone 2
-
-Add:
-
-offline PWA
-observation list
-editing observations
-deleting observations
-Milestone 3
-
-Add:
-
-photo capture
-image compression
-local photo storage
-Milestone 4
-
-Add:
-
-microphone permission
-relative noise measurement
-average + peak
-Milestone 5
-
-Add:
-
-accelerometer
-gyroscope
-device orientation
-raw measurement recording
-Milestone 6
-
-Create PHP backend:
-
-POST observations
-GET observations
-photo upload
-database persistence
-Milestone 7
-
-Implement synchronization:
-
-IndexedDB
-↓
-sync queue
-↓
-REST API
-↓
-PostgreSQL
-
-Handle:
-
-offline
-timeouts
-failed uploads
-duplicates
-retry
-18. Accessibility of the app itself
-
-Very important for this project.
-
-The UI should have:
-
-large touch targets
-keyboard navigation
-screen-reader labels
-semantic HTML
-high contrast
-no information communicated only through color
-simple forms
-minimal required typing
-clear permission explanations
-large readable text
-19. Instructions for the coding LLM
-    You are building a mobile-first accessibility data collection PWA.
-
-Technology:
-
-Frontend:
-- Vue 3
-- TypeScript
-- Vite
-- Vue Router
-- Pinia
-- Leaflet
-- OpenStreetMap
-- Dexie / IndexedDB
-- Vite PWA
-
-Backend:
-- PHP REST API
-- PostgreSQL
-
-Vue rules:
-- use Vue 3 Composition API
-- use <script setup lang="ts">
-- keep components small
-- keep business logic outside UI components
-- use composables for reusable Vue logic
-- use services for browser APIs and backend access
-
-Sensor rules:
-- sensor APIs must be isolated behind services
-- always expect sensors to be unavailable
-- handle denied permissions gracefully
-- never record or store microphone audio
-- noise measurements are relative, not calibrated dB
-- sensor measurement must never be required to create an observation
-
-Offline rules:
-- save observations locally before server synchronization
-- use IndexedDB for persistent data
-- support failed sync and retries
-
-Accessibility rules:
-- build accessible UI
-- use semantic HTML
-- provide labels for controls
-- support keyboard navigation
-- use sufficiently large touch targets
-
-Development process:
-- implement only one milestone at a time
-- do not introduce unnecessary abstractions
-- prefer simple readable code
-- avoid premature optimization
-
-After each milestone:
-1. summarize what was implemented
-2. list created/modified files
-3. describe important architecture decisions
-4. provide manual testing instructions
-5. list browser/device limitations
-6. identify remaining TODOs
-7. do not automatically start the next milestone
-
-The key idea is: make manual accessibility data collection work reliably first. Then progressively add sensor data.
+# AccessApp collection phase
+
+## Goal
+
+Build a mobile-first PWA for collecting accessibility information for a public map.
+
+Users can:
+
+- See their current location on a map.
+- Mark a location and create an accessibility observation.
+- Answer a short accessibility questionnaire.
+- Optionally attach photos and collect sensor measurements.
+- Save observations offline and synchronize them later.
+- View previously collected observations on the map.
+- Edit or delete observations created on their device.
+
+Personal accessibility profiles and accessible route planning are explicitly deferred to a later phase.
+
+## Milestones
+
+### Milestone 1 — Local collection
+
+- Show the user's current location and GPS accuracy.
+- Create an observation at the captured location.
+- Complete the accessibility questionnaire.
+- Optionally attach photos and collect noise, motion, or light measurements.
+- Save drafts and completed observations locally while offline.
+- View, edit, and delete local observations.
+
+### Milestone 2 — Backend synchronization
+
+- Upload completed observations and their media to the backend.
+- Retry interrupted uploads without creating duplicates.
+- Reject stale edits by using an observation revision number.
+- Authenticate edits and deletions with an observation-specific edit token.
+- Keep deletion tombstones so an old offline client cannot recreate deleted data.
+- Load public observations for the visible map area.
+
+## Data model principles
+
+- An **observation** is a contributor's report and contains the original questionnaire answers and measurements.
+- A **map feature** is a stable real-world object such as a building, entrance, staircase, ramp, toilet, elevator, or path.
+- An observation may initially be unlinked. It can later be linked to one map feature through `map_feature_id`.
+- Multiple observations may refer to the same map feature.
+- Map features do not contain contributor ownership, raw answers, media, or raw sensor samples.
+- Derived accessibility values for map features are outside the collection phase. They must later be calculated from observations with provenance and confidence information, rather than directly overwriting feature columns.
+- The MVP has no user accounts. Ownership of an observation is represented by a secret edit token held on the originating device; only its hash is stored by the backend.
+- Unknown questionnaire answers are stored as `NULL`. `FALSE` always means an explicit "no" answer.
+- All timestamps use `timestamptz`, and all application entity identifiers use UUIDs.
+
+## PostgreSQL schema
+
+PostGIS is used for validated coordinates, bounding-box queries, and future support for non-point feature geometry.
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS postgis;
+
+CREATE TABLE map_feature_types (
+    id smallint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    code text NOT NULL UNIQUE,
+    name text NOT NULL,
+    description text
+);
+
+CREATE TABLE map_features (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    type_id smallint NOT NULL REFERENCES map_feature_types(id),
+    parent_feature_id uuid REFERENCES map_features(id) ON DELETE SET NULL,
+    name text,
+    geometry geometry(Geometry, 4326) NOT NULL,
+    status text NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active', 'merged', 'removed')),
+    merged_into_id uuid REFERENCES map_features(id) ON DELETE SET NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CHECK (merged_into_id IS NULL OR merged_into_id <> id),
+    CHECK (
+        (status = 'merged' AND merged_into_id IS NOT NULL)
+        OR (status <> 'merged' AND merged_into_id IS NULL)
+    )
+);
+
+CREATE INDEX map_features_geometry_idx
+    ON map_features USING gist (geometry);
+CREATE INDEX map_features_type_idx
+    ON map_features (type_id);
+
+CREATE TABLE observations (
+    id uuid PRIMARY KEY,
+    map_feature_id uuid REFERENCES map_features(id) ON DELETE SET NULL,
+
+    revision integer NOT NULL CHECK (revision > 0),
+    edit_token_hash text NOT NULL,
+    payload_hash char(64),
+    deleted boolean NOT NULL DEFAULT false,
+
+    captured_at timestamptz,
+    location geography(Point, 4326),
+    location_accuracy_m double precision
+        CHECK (location_accuracy_m IS NULL OR location_accuracy_m >= 0),
+    altitude_m double precision,
+    altitude_accuracy_m double precision
+        CHECK (altitude_accuracy_m IS NULL OR altitude_accuracy_m >= 0),
+    heading_degrees double precision
+        CHECK (heading_degrees IS NULL OR
+               (heading_degrees >= 0 AND heading_degrees < 360)),
+    speed_mps double precision
+        CHECK (speed_mps IS NULL OR speed_mps >= 0),
+    location_timestamp_ms double precision
+        CHECK (location_timestamp_ms IS NULL OR location_timestamp_ms >= 0),
+
+    wheelchair_accessible boolean,
+    ramp_available boolean,
+    accessible_toilet boolean,
+    elevator_available boolean,
+    steps_at_entrance smallint
+        CHECK (steps_at_entrance IS NULL OR steps_at_entrance >= 0),
+    steps_count_is_minimum boolean NOT NULL DEFAULT false,
+    surface text
+        CHECK (surface IS NULL OR surface IN
+               ('smooth', 'uneven', 'cobblestone', 'gravel', 'other')),
+    inclination_percent double precision
+        CHECK (inclination_percent IS NULL OR
+               inclination_percent BETWEEN -100 AND 100),
+    comment text CHECK (comment IS NULL OR char_length(comment) <= 2000),
+
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CHECK (NOT steps_count_is_minimum OR steps_at_entrance IS NOT NULL),
+    CHECK (deleted OR
+           (captured_at IS NOT NULL AND location IS NOT NULL AND payload_hash IS NOT NULL))
+);
+
+CREATE INDEX observations_location_idx
+    ON observations USING gist (location);
+CREATE INDEX observations_map_feature_idx
+    ON observations (map_feature_id)
+    WHERE NOT deleted;
+CREATE INDEX observations_updated_idx
+    ON observations (updated_at, id)
+    WHERE NOT deleted;
+
+CREATE TABLE media (
+    id uuid PRIMARY KEY,
+    observation_id uuid NOT NULL
+        REFERENCES observations(id) ON DELETE CASCADE,
+    media_type text NOT NULL CHECK (media_type IN ('photo')),
+    sort_order smallint NOT NULL CHECK (sort_order BETWEEN 0 AND 5),
+    storage_key text UNIQUE,
+    original_filename text,
+    mime_type text CHECK (mime_type IS NULL OR mime_type = 'image/jpeg'),
+    byte_size integer CHECK (byte_size IS NULL OR byte_size > 0),
+    sha256 char(64) CHECK (sha256 IS NULL OR sha256 ~ '^[0-9a-f]{64}$'),
+    width_px integer CHECK (width_px IS NULL OR width_px > 0),
+    height_px integer CHECK (height_px IS NULL OR height_px > 0),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    uploaded_at timestamptz,
+    CHECK (
+        (uploaded_at IS NULL AND storage_key IS NULL AND mime_type IS NULL AND
+         byte_size IS NULL AND sha256 IS NULL AND width_px IS NULL AND height_px IS NULL)
+        OR
+        (uploaded_at IS NOT NULL AND storage_key IS NOT NULL AND mime_type IS NOT NULL AND
+         byte_size IS NOT NULL AND sha256 IS NOT NULL AND width_px IS NOT NULL AND
+         height_px IS NOT NULL)
+    )
+);
+
+CREATE INDEX media_observation_idx ON media (observation_id);
+
+CREATE TABLE sensor_measurements (
+    id uuid PRIMARY KEY,
+    observation_id uuid NOT NULL
+        REFERENCES observations(id) ON DELETE CASCADE,
+    sensor_type text NOT NULL
+        CHECK (sensor_type IN ('noise', 'motion', 'light')),
+    started_at timestamptz NOT NULL,
+    duration_ms integer NOT NULL CHECK (duration_ms >= 0),
+    summary jsonb NOT NULL DEFAULT '{}'::jsonb
+        CHECK (jsonb_typeof(summary) = 'object'),
+    samples jsonb
+        CHECK (samples IS NULL OR jsonb_typeof(samples) = 'array'),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (observation_id, sensor_type)
+);
+
+CREATE INDEX sensor_measurements_observation_idx
+    ON sensor_measurements (observation_id);
+```
+
+## Field semantics
+
+- For the questionnaire option `3+ steps`, store `steps_at_entrance = 3` and `steps_count_is_minimum = true`.
+- `inclination_percent` is grade percentage, not degrees. The collection UI must label the unit.
+- Noise measurements contain relative level summaries only. Raw audio must not be recorded or uploaded.
+- Motion and light samples are optional and device-dependent. Sensor payloads must include their units and sampling metadata in `summary`.
+- `storage_key` is an internal object-storage or filesystem key. Never expose a server filesystem path through the public API.
+- Media rows are created as pending entries from the observation's photo manifest. Uploading the JPEG fills the nullable file metadata and `uploaded_at`; this makes partial upload retries idempotent.
+- Deleting an observation sets `deleted = true`, increments `revision`, clears public payload data as appropriate, and deletes related media and sensor measurements. The observation row remains as a minimal tombstone.
+
+## Deferred additions
+
+The following are deliberately not part of the collection schema:
+
+- User accounts and server-synchronized accessibility profiles
+- Aggregated or authoritative accessibility values on map features
+- Observation voting, moderation, and dispute resolution
+- A pedestrian routing graph and route preferences
+- Accessible route calculation

@@ -31,5 +31,9 @@ export const useLocationStore = defineStore("location", () => {
       loading.value = false;
     }
   }
-  return { current, loading, error, locate };
+  function setManualLocation(location: LocationData) {
+    current.value = { ...location };
+    error.value = "";
+  }
+  return { current, loading, error, locate, setManualLocation };
 });

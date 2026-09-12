@@ -1,6 +1,6 @@
 # AccessApp
 
-A mobile-first Vue 3 accessibility collection PWA with a PHP REST API and PostgreSQL persistence. All seven milestones in [plan.md](plan.md) are implemented. The follow-up request to complete the remaining milestones superseded the original stop-after-each-milestone instruction.
+A mobile-first Vue 3 accessibility collection PWA with a Symfony REST API, PostgreSQL, and PostGIS persistence. The collection-phase requirements and schema are documented in [plan2.md](plan2.md), which is the source of truth; [plan.md](plan.md) mirrors it.
 
 ## Start the app
 
@@ -9,23 +9,13 @@ Use Node.js 22.12+ or Node.js 24+, plus Docker Compose for the backend. The repo
 ```sh
 nvm use
 npm ci
-docker compose -p accessapp up -d --build
+(cd backend && docker compose up -d --build --wait)
 npm run dev
 ```
 
-Open **http://localhost:5173**. Vite proxies `/api` to **http://127.0.0.1:8080**. PostgreSQL uses the isolated local port **55432**, so an existing database on 5432 is unaffected. Compose creates dedicated database and photo volumes. The Compose credentials and PHP development server are for local development.
+Open **http://localhost:5173**. Vite proxies `/api` to the Symfony API at **http://127.0.0.1:8080**. The backend container applies Doctrine migrations automatically and Compose creates dedicated database and photo volumes. Its default credentials are for local development only.
 
-Alternatively, run PHP 8.4 locally with `pdo_pgsql`, `gd`, and `mbstring`:
-
-```sh
-docker compose -p accessapp up -d db
-php backend/migrate.php
-php -d upload_max_filesize=5M -d post_max_size=6M -S 127.0.0.1:8080 backend/router.php
-```
-
-Run `npm run dev` in another terminal. Do not run the native PHP server and Compose API on port 8080 simultaneously. The variables in [backend/.env.example](backend/.env.example) document configuration; export them in the server environment if overriding defaults. The PHP code does not automatically load dotenv files.
-
-Stop containers without removing saved data using `docker compose -p accessapp stop`.
+Stop the backend without removing saved data using `(cd backend && docker compose stop)`.
 
 ## Using the app
 
@@ -63,10 +53,10 @@ OpenStreetMap tiles and public data requests are not precached. The local map ma
 | 3 — Photos                 | Camera/file selection, previews, six-photo limit, resizing, JPEG encoding, EXIF removal, local persistence/removal           | `src/services/camera.ts`, `src/components/PhotoCapture.vue`, observation types and photo table                                                                                          |
 | 4 — Noise                  | Microphone permission, bounded measurement, relative RMS average and amplitude peak; no audio recording                      | `src/services/noise.ts`, `src/services/abort.ts`, `src/components/SensorMeasurements.vue`                                                                                               |
 | 5 — Motion                 | Raw acceleration, angular velocity and orientation, optional ambient light, cancellation/permission handling                 | `src/services/motion.ts`, `src/services/light.ts`, `src/types/sensors.ts`, sensor component/table                                                                                       |
-| 6 — Backend                | Validated REST API, PostgreSQL, public queries, photo persistence/retrieval, authenticated updates/deletion without accounts | `backend/public/index.php`, `backend/src/common.php`, schema, migration, router, Dockerfile, environment example and `compose.yaml`                                                     |
+| 6 — Backend                | Symfony REST API, PostGIS queries, normalized persistence, photo storage, validated DTOs, and capability-authenticated mutations | Symfony controllers/services/DTOs in `backend/src`, Doctrine migrations, Dockerfile and Compose configuration                                                                         |
 | 7 — Sync                   | Durable queue, retries/backoff, timeouts, partial photo recovery, revision protection, cross-tab lock, reconnect support     | `src/services/api.ts`, `src/services/sync.ts`, `src/stores/sync.ts`, `src/components/SyncPanel.vue`, map/list integration                                                               |
 
-Supporting changes include dependency/lock files, TypeScript PWA declarations, styling, ignore files, three Playwright configurations, and browser/API/PWA tests. The original `plan.md` remains unchanged.
+Supporting changes include dependency/lock files, TypeScript PWA declarations, styling, ignore files, three Playwright configurations, and browser/API/PWA tests.
 
 ## Architecture decisions
 
@@ -81,7 +71,7 @@ Supporting changes include dependency/lock files, TypeScript PWA declarations, s
 - Photos accept JPEG/PNG/WebP up to 20 MB, resize to at most 1600 pixels on the longest side, and are stored as JPEG. The API accepts JPEGs up to 5 MB/1600 pixels and re-encodes them again to strip metadata.
 - Noise stores the mean of sampled RMS levels and peak absolute amplitude, not calibrated dB. Motion stores raw acceleration in m/s², rotation rates in degrees/second, orientation angles in degrees, and epoch-millisecond timestamps. Browser-provided null readings remain null. Sampling is throttled to about 10 Hz and does not infer accessibility.
 - Sensors stop after their measurement window, on cancellation, when the document is hidden, or when leaving the form. Cancelling a pending permission request releases the UI; any microphone stream granted later is immediately stopped.
-- PostgreSQL JSONB is sufficient for this MVP's bounding-box filters. PostGIS can be added when geographic indexing, distances, or larger query volumes require it.
+- PostgreSQL stores questionnaire fields relationally, PostGIS stores and indexes observation locations, and JSONB is limited to variable sensor summaries and sample arrays.
 
 ## API
 
@@ -103,13 +93,14 @@ Payloads include `id` (UUID v4), `revision`, `createdAt`, `location`, `accessibi
 
 ## Verification
 
-Verified on 2026-09-09: TypeScript and production/PWA builds pass, all **16 automated tests** pass (12 browser, 3 API/integration, 1 production offline-reload), PHP syntax checks pass, and the Docker API image builds and runs with PostgreSQL. The updated 375 px mobile form and observation list were visually inspected without horizontal overflow. API integration tests passed against the containerized backend.
+The Symfony backend has functional HTTP tests, while the root API suite exercises the real Vue-to-Symfony synchronization flow, including partial photo recovery, authorization, revisions, bounding boxes, and tombstones.
 
 ```sh
 npx playwright install chromium
 npm test
 npm run test:api
 npm run test:pwa
+(cd backend && docker compose exec php php bin/phpunit)
 ```
 
 The API suite requires PostgreSQL and PHP running on the configured ports. It creates isolated UUID fixtures and removes their public records afterward; minimal deletion tombstones remain. It also starts/reuses Vite for the full UI sync test. The PWA suite builds and previews the production app.
@@ -136,9 +127,9 @@ Manual checks by milestone:
 - Public-map UI loading is capped at 200 records per request. The API supports pagination/bbox queries; automatic viewport pagination and marker clustering remain future scale improvements.
 - OpenStreetMap tiles require a network and are not downloaded for offline use. A managed tile provider may be appropriate for larger deployments.
 - Production deployment, HTTPS, production database credentials, backups, rate limiting/moderation for anonymous submissions, monitoring, and real-device QA are operational follow-ups. The supplied Compose stack is a local development setup, not a production deployment.
-- Serve `dist/` with navigation fallback to `index.html`, route `/api` to PHP separately, keep photo storage outside the public root, and avoid permanently caching `sw.js` or HTML. Use PHP-FPM or another production PHP server rather than the development server.
+- Serve `dist/` with navigation fallback to `index.html`, route `/api` to the Symfony/FrankenPHP service, keep photo storage outside the public root, and avoid permanently caching `sw.js` or HTML.
 
-No requested milestone is intentionally deferred. PostGIS, calibrated noise, automatic accessibility classification, native sensor adapters, accounts, and background sync after closing the app are outside this MVP.
+Calibrated noise, automatic accessibility classification, native sensor adapters, accounts, routing, and background sync after closing the app are outside this collection MVP.
 
 ## References
 

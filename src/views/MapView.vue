@@ -5,6 +5,7 @@ import { database } from "../services/storage";
 import type { Observation } from "../types/observation";
 import Map from "../components/Map.vue";
 import LocationDetails from "../components/LocationDetails.vue";
+import ManualLocationForm from "../components/ManualLocationForm.vue";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
 const location = useLocationStore();
@@ -80,6 +81,10 @@ onMounted(() => {
       <p v-if="location.error" class="error" role="alert">
         {{ location.error }}
       </p>
+      <ManualLocationForm
+        v-if="location.error && !location.current"
+        @selected="location.setManualLocation"
+      />
       <div aria-live="polite">
         <LocationDetails v-if="location.current" :location="location.current" />
       </div>
