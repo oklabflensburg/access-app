@@ -19,7 +19,7 @@
     "leaflet": "^1.9.4",
     "pinia": "^3.0.4",
     "vue": "^3.5.42",
-    "vue-router": "^4.6.4"
+    "vue-i18n": "^11.2.8"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

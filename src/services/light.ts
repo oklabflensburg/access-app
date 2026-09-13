@@ -12,14 +12,14 @@ export function measureLight(signal: AbortSignal): Promise<Reading[]> {
   ).AmbientLightSensor;
   if (!API)
     return Promise.reject(
-      new Error("Ambient light sensing is unavailable in this browser."),
+      new Error("Umgebungslichtmessung ist nicht verfügbar."),
     );
   return new Promise((resolve, reject) => {
     let sensor: LightSensor;
     try {
       sensor = new API({ frequency: 2 });
     } catch {
-      reject(new Error("Ambient light sensing is unavailable."));
+      reject(new Error("Umgebungslichtmessung ist nicht verfügbar."));
       return;
     }
     const readings: Reading[] = [];
@@ -39,17 +39,17 @@ export function measureLight(signal: AbortSignal): Promise<Reading[]> {
     };
     const fail = () => {
       cleanup();
-      reject(new Error("Light sensor unavailable or permission denied."));
+      reject(new Error("Lichtsensor nicht verfügbar oder Berechtigung verweigert."));
     };
     const abort = () => {
       cleanup();
-      reject(new Error("Measurement cancelled."));
+      reject(new Error("Messung abgebrochen."));
     };
     const timeout = setTimeout(() => {
       cleanup();
       readings.length
         ? resolve(readings)
-        : reject(new Error("No light readings received."));
+        : reject(new Error("Keine Lichtwerte empfangen."));
     }, 5000);
     sensor.addEventListener("reading", read);
     sensor.addEventListener("error", fail);

@@ -4,8 +4,10 @@ import { measureNoise } from "../services/noise";
 import { measureMotion } from "../services/motion";
 import { measureLight } from "../services/light";
 import type { SensorData } from "../types/sensors";
+import { useI18n } from "vue-i18n";
 const model = defineModel<SensorData>({ required: true });
 const emit = defineEmits<{ busy: [value: boolean] }>();
+const { t } = useI18n();
 const active = ref("");
 const error = ref("");
 let controller: AbortController | undefined;
@@ -35,7 +37,7 @@ async function record(kind: "noise" | "motion" | "light") {
     error.value =
       cause instanceof Error
         ? cause.message
-        : "Measurement unavailable or permission denied.";
+        : t("observation.measurementError");
   } finally {
     active.value = "";
     emit("busy", false);
@@ -53,35 +55,25 @@ onBeforeUnmount(() => {
 <template>
   <section class="optional-section" aria-labelledby="sensors-heading">
     <h2 id="sensors-heading">
-      Measurements <span class="optional">(optional)</span>
+      {{ t("observation.measurements") }} <span class="optional">({{ t("observation.optional") }})</span>
     </h2>
-    <p class="small">
-      Noise uses the microphone for 10 seconds. Only relative average and peak
-      levels are kept, never audio. These are not calibrated decibels.
-    </p>
     <button
       type="button"
       class="secondary"
       :disabled="!!active"
       @click="record('noise')"
     >
-      Measure noise
+      {{ t("observation.noise") }}
     </button>
     <p v-if="model.noise">
-      Relative average: {{ model.noise.averageLevel.toFixed(3) }} · Peak:
-      {{ model.noise.peakLevel.toFixed(3) }} ·
-      {{ model.noise.duration.toFixed(1) }} s
+      {{ t("observation.noiseValue", { average: model.noise.averageLevel.toFixed(3), peak: model.noise.peakLevel.toFixed(3) }) }}
       <button
         type="button"
         class="secondary"
         @click="model = { ...model, noise: undefined }"
       >
-        Remove noise
+        {{ t("observation.removeNoise") }}
       </button>
-    </p>
-    <p class="small">
-      Motion records raw acceleration, rotation, and orientation for 10 seconds.
-      It does not determine wheelchair accessibility.
     </p>
     <button
       type="button"
@@ -89,20 +81,17 @@ onBeforeUnmount(() => {
       :disabled="!!active"
       @click="record('motion')"
     >
-      Record motion
+      {{ t("observation.motion") }}
     </button>
     <p v-if="model.motion?.length">
-      {{ model.motion.length }} raw motion samples
+      {{ t("observation.motionValue", { count: model.motion.length }) }}
       <button
         type="button"
         class="secondary"
         @click="model = { ...model, motion: undefined }"
       >
-        Remove motion
+        {{ t("observation.removeMotion") }}
       </button>
-    </p>
-    <p class="small">
-      Ambient light is available only on some devices; it takes 5 seconds.
     </p>
     <button
       type="button"
@@ -110,22 +99,22 @@ onBeforeUnmount(() => {
       :disabled="!!active"
       @click="record('light')"
     >
-      Measure light
+      {{ t("observation.light") }}
     </button>
     <p v-if="model.light?.length">
-      {{ model.light.length }} light readings
+      {{ t("observation.lightValue", { count: model.light.length }) }}
       <button
         type="button"
         class="secondary"
         @click="model = { ...model, light: undefined }"
       >
-        Remove light
+        {{ t("observation.removeLight") }}
       </button>
     </p>
     <p v-if="active" role="status">
-      {{ active }} measurement in progress…
+      {{ t("observation.measuring", { kind: active }) }}
       <button type="button" class="secondary" @click="controller?.abort()">
-        Cancel measurement
+        {{ t("observation.cancel") }}
       </button>
     </p>
     <p v-if="error" class="error" role="alert">{{ error }}</p>

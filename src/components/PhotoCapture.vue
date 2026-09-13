@@ -2,9 +2,11 @@
 import { onBeforeUnmount, ref, watch } from "vue";
 import { preparePhoto } from "../services/camera";
 import type { Photo } from "../types/observation";
+import { useI18n } from "vue-i18n";
 const props = defineProps<{ observationId: string }>();
 const photos = defineModel<Photo[]>({ required: true });
 const emit = defineEmits<{ busy: [value: boolean] }>();
+const { t } = useI18n();
 const busy = ref(false);
 const error = ref("");
 const previews = ref<{ id: string; url: string }[]>([]);
@@ -37,14 +39,14 @@ async function add(event: Event) {
   emit("busy", true);
   try {
     if (photos.value.length + files.length > 6)
-      throw new Error("Add at most 6 photos per observation.");
+      throw new Error(t("observation.maxPhotos"));
     const prepared: Photo[] = [];
     for (const file of files)
       prepared.push(await preparePhoto(file, props.observationId));
     if (!disposed) photos.value = [...photos.value, ...prepared];
   } catch (cause) {
     error.value =
-      cause instanceof Error ? cause.message : "Could not process this photo.";
+      cause instanceof Error ? cause.message : t("observation.photoError");
   } finally {
     busy.value = false;
     emit("busy", false);
@@ -53,13 +55,9 @@ async function add(event: Event) {
 </script>
 <template>
   <section aria-labelledby="photos-heading" class="optional-section">
-    <h2 id="photos-heading">Photos <span class="optional">(optional)</span></h2>
-    <p class="small">
-      Up to 6 photos of entrances, ramps, or obstacles. Photos are resized and
-      location metadata is removed. Avoid including identifiable people.
-    </p>
+    <h2 id="photos-heading">{{ t("observation.photos") }} <span class="optional">({{ t("observation.optional") }})</span></h2>
     <div class="field">
-      <label for="camera">Take a photo</label
+      <label for="camera">{{ t("observation.takePhoto") }}</label
       ><input
         id="camera"
         type="file"
@@ -70,7 +68,7 @@ async function add(event: Event) {
       />
     </div>
     <div class="field">
-      <label for="photo-files">Choose photos</label
+      <label for="photo-files">{{ t("observation.choosePhotos") }}</label
       ><input
         id="photo-files"
         type="file"
@@ -80,17 +78,17 @@ async function add(event: Event) {
         @change="add"
       />
     </div>
-    <p v-if="busy" role="status">Preparing photos…</p>
+    <p v-if="busy" role="status">{{ t("observation.preparingPhotos") }}</p>
     <p v-if="error" role="alert" class="error">{{ error }}</p>
     <ul class="photo-grid">
       <li v-for="(photo, index) in previews" :key="photo.id">
-        <img :src="photo.url" :alt="`Observation photo ${index + 1}`" /><button
+        <img :src="photo.url" :alt="t('observation.photo', { number: index + 1 })" /><button
           type="button"
           class="secondary"
           :disabled="busy"
           @click="photos = photos.filter((p) => p.id !== photo.id)"
         >
-          Remove photo {{ index + 1 }}
+          {{ t("observation.removePhoto", { number: index + 1 }) }}
         </button>
       </li>
     </ul>

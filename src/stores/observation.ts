@@ -4,6 +4,7 @@ import { getObservations, saveObservation } from "../services/storage";
 import type { Observation } from "../types/observation";
 import type { Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
+import { t } from "../i18n";
 
 export const useObservationStore = defineStore("observation", () => {
   const observations = ref<Observation[]>([]);
@@ -14,8 +15,7 @@ export const useObservationStore = defineStore("observation", () => {
     try {
       observations.value = await getObservations();
     } catch {
-      error.value =
-        "Could not read saved observations. Check that browser storage is enabled, then retry.";
+      error.value = t("errors.observations");
     }
   }
   async function save(
@@ -25,7 +25,7 @@ export const useObservationStore = defineStore("observation", () => {
   ) {
     await saveObservation(observation, photos, sensors);
     await load();
-    notice.value = "Observation saved on this device.";
+    notice.value = t("app.saved");
   }
   return { observations, error, notice, load, save };
 });

@@ -42,7 +42,7 @@ export async function saveObservation(
     Math.abs(latitude) > 90 ||
     Math.abs(longitude) > 180
   ) {
-    throw new Error("A valid location is required.");
+    throw new Error("Ein gültiger Standort ist erforderlich.");
   }
   await database.transaction(
     "rw",
@@ -53,7 +53,7 @@ export async function saveObservation(
       const old = await database.observations.get(observation.id);
       if (old && (old.revision !== observation.revision || old.deleted))
         throw new Error(
-          "This observation changed in another tab. Reload before editing.",
+          "Dieser Eintrag wurde in einem anderen Tab geändert.",
         );
       const record: Observation = JSON.parse(
         JSON.stringify({

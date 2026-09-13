@@ -12,14 +12,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       throw new Error(
-        body?.error ?? `Server returned ${response.status}. Please retry.`,
+        body?.error ?? `Serverfehler ${response.status}.`,
       );
     }
     return (await response.json()) as T;
   } catch (cause) {
     if (controller.signal.aborted)
       throw new Error(
-        "The server timed out. Your observation remains saved; retry is safe.",
+        "Zeitüberschreitung beim Server.",
       );
     throw cause;
   } finally {

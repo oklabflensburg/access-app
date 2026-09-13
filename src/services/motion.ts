@@ -6,7 +6,7 @@ export async function measureMotion(
   signal: AbortSignal,
 ): Promise<MotionMeasurement[]> {
   if (!window.isSecureContext || !("DeviceMotionEvent" in window))
-    throw new Error("Motion sensors are unavailable in this browser.");
+    throw new Error("Bewegungssensoren sind nicht verfügbar.");
   const permissionAPIs = [
     window.DeviceMotionEvent,
     window.DeviceOrientationEvent,
@@ -21,9 +21,9 @@ export async function measureMotion(
   );
   if (permissions.some((p) => p !== "granted"))
     throw new Error(
-      "Motion permission was denied. You can still save an observation.",
+      "Zugriff auf Bewegungssensoren wurde verweigert.",
     );
-  if (signal.aborted) throw new Error("Measurement cancelled.");
+  if (signal.aborted) throw new Error("Messung abgebrochen.");
   return new Promise((resolve, reject) => {
     const samples: MotionMeasurement[] = [];
     let acceleration: DeviceMotionEventAcceleration | null = null;
@@ -48,7 +48,7 @@ export async function measureMotion(
     };
     const abort = () => {
       cleanup();
-      reject(new Error("Measurement cancelled."));
+      reject(new Error("Messung abgebrochen."));
     };
     window.addEventListener("devicemotion", motion);
     window.addEventListener("deviceorientation", orient);
@@ -81,7 +81,7 @@ export async function measureMotion(
       else
         reject(
           new Error(
-            "No motion readings received. This device may not have supported sensors.",
+            "Keine Bewegungswerte empfangen.",
           ),
         );
     }, 10000);

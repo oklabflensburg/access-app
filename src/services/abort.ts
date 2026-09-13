@@ -6,7 +6,7 @@ export function withAbort<T>(
   dispose?: (value: T) => void,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const abort = () => reject(new Error("Measurement cancelled."));
+    const abort = () => reject(new Error("Messung abgebrochen."));
     if (signal.aborted) abort();
     else signal.addEventListener("abort", abort, { once: true });
     promise.then(

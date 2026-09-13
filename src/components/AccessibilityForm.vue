@@ -1,22 +1,24 @@
 <script setup lang="ts">
 import type { AccessibilityData } from "../types/observation";
+import { useI18n } from "vue-i18n";
 const model = defineModel<AccessibilityData>({ required: true });
+const { t } = useI18n();
 const questions = [
-  { key: "wheelchairAccessible", label: "Wheelchair accessible?" },
-  { key: "ramp", label: "Ramp available?" },
-  { key: "accessibleToilet", label: "Accessible toilet?" },
-  { key: "elevator", label: "Elevator available?" },
+  { key: "wheelchairAccessible", label: "observation.wheelchair" },
+  { key: "ramp", label: "observation.ramp" },
+  { key: "accessibleToilet", label: "observation.toilet" },
+  { key: "elevator", label: "observation.elevator" },
 ] as const;
 const answers = [
-  { label: "Yes", value: true },
-  { label: "No", value: false },
-  { label: "Unknown", value: null },
+  { label: "observation.yes", value: true },
+  { label: "observation.no", value: false },
+  { label: "observation.unknown", value: null },
 ];
 </script>
 
 <template>
   <fieldset v-for="question in questions" :key="question.key">
-    <legend>{{ question.label }}</legend>
+    <legend>{{ t(question.label) }}</legend>
     <div class="choices">
       <label v-for="answer in answers" :key="answer.label" class="choice">
         <input
@@ -24,12 +26,12 @@ const answers = [
           type="radio"
           :name="question.key"
           :value="answer.value"
-        />{{ answer.label }}
+        />{{ t(answer.label) }}
       </label>
     </div>
   </fieldset>
   <fieldset>
-    <legend>Steps at entrance?</legend>
+    <legend>{{ t("observation.steps") }}</legend>
     <div class="choices wrap">
       <label v-for="step in [0, 1, 2, 3] as const" :key="step" class="choice"
         ><input
@@ -45,19 +47,19 @@ const answers = [
           type="radio"
           name="steps"
           :value="null"
-        />Unknown</label
+        />{{ t("observation.unknown") }}</label
       >
     </div>
   </fieldset>
   <div class="field">
-    <label for="surface">Surface</label>
+    <label for="surface">{{ t("observation.surface") }}</label>
     <select id="surface" v-model="model.surface">
-      <option :value="null">Unknown</option>
-      <option value="smooth">Smooth</option>
-      <option value="uneven">Uneven</option>
-      <option value="cobblestone">Cobblestone</option>
-      <option value="gravel">Gravel</option>
-      <option value="other">Other</option>
+      <option :value="null">{{ t("observation.unknown") }}</option>
+      <option value="smooth">{{ t("observation.smooth") }}</option>
+      <option value="uneven">{{ t("observation.uneven") }}</option>
+      <option value="cobblestone">{{ t("observation.cobblestone") }}</option>
+      <option value="gravel">{{ t("observation.gravel") }}</option>
+      <option value="other">{{ t("observation.other") }}</option>
     </select>
   </div>
 </template>

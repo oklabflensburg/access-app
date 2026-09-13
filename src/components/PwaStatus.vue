@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { useRegisterSW } from "virtual:pwa-register/vue";
+import { useI18n } from "vue-i18n";
 const { offlineReady, needRefresh, updateServiceWorker } = useRegisterSW();
+const { t } = useI18n();
 </script>
 <template>
   <div v-if="offlineReady || needRefresh" class="pwa-status" role="status">
     <template v-if="needRefresh"
-      >An app update is ready. Save your work before reloading.
+      >{{ t("pwa.update") }}
       <button class="secondary" @click="updateServiceWorker(true)">
-        Reload app
+        {{ t("pwa.reload") }}
       </button></template
     >
     <template v-else
-      >App ready for offline use. Map tiles still need a connection.</template
+      >{{ t("pwa.ready") }}</template
     >
     <button
       class="secondary"
@@ -20,7 +22,7 @@ const { offlineReady, needRefresh, updateServiceWorker } = useRegisterSW();
         needRefresh = false;
       "
     >
-      Dismiss
+      {{ t("pwa.dismiss") }}
     </button>
   </div>
 </template>

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import type { LocationData } from "../types/location";
+import { useI18n } from "vue-i18n";
 
 const emit = defineEmits<{ selected: [location: LocationData] }>();
+const { t } = useI18n();
 const latitude = ref<string | number>("");
 const longitude = ref<string | number>("");
 const error = ref("");
@@ -22,7 +24,7 @@ function selectLocation() {
     parsedLongitude < -180 ||
     parsedLongitude > 180
   ) {
-    error.value = "Enter a latitude from −90 to 90 and longitude from −180 to 180.";
+    error.value = t("location.invalid");
     return;
   }
 
@@ -42,12 +44,10 @@ function selectLocation() {
 
 <template>
   <div class="manual-location">
-    <p class="small">
-      If automatic location is unavailable, enter coordinates from your map app.
-    </p>
+    <p class="small">{{ t("location.manual") }}</p>
     <div class="manual-location-fields">
       <label>
-        Latitude
+        {{ t("location.latitude") }}
         <input
           v-model="latitude"
           name="latitude"
@@ -60,7 +60,7 @@ function selectLocation() {
         />
       </label>
       <label>
-        Longitude
+        {{ t("location.longitude") }}
         <input
           v-model="longitude"
           name="longitude"
@@ -75,7 +75,7 @@ function selectLocation() {
     </div>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <button class="secondary" type="button" @click="selectLocation">
-      Use these coordinates
+      {{ t("location.use") }}
     </button>
   </div>
 </template>

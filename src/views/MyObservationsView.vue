@@ -3,7 +3,9 @@ import { onMounted, ref } from "vue";
 import { useObservationStore } from "../stores/observation";
 import { deleteObservation } from "../services/storage";
 import SyncPanel from "../components/SyncPanel.vue";
+import { useI18n } from "vue-i18n";
 const store = useObservationStore();
+const { t, locale } = useI18n();
 const confirmId = ref("");
 const error = ref("");
 onMounted(store.load);
@@ -13,23 +15,18 @@ async function remove(id: string) {
     confirmId.value = "";
     await store.load();
   } catch {
-    error.value = "Could not delete this observation. Please retry.";
+    error.value = t("list.deleteError");
   }
 }
 </script>
 <template>
-  <h1 tabindex="-1">My observations</h1>
-  <p>
-    Saved on this device. Edit details, manage photos, or share with the public
-    map.
-  </p>
+  <h1>{{ t("list.title") }}</h1>
   <SyncPanel />
   <p v-if="error || store.error" class="error" role="alert">
     {{ error || store.error }}
   </p>
   <p v-if="!store.observations.length">
-    No observations yet.
-    <RouterLink to="/observation/new">Add an observation</RouterLink>.
+    {{ t("list.empty") }}
   </p>
   <ul class="observation-list">
     <li
@@ -37,42 +34,35 @@ async function remove(id: string) {
       :key="observation.id"
       class="panel"
     >
-      <h2>{{ new Date(observation.createdAt).toLocaleString() }}</h2>
-      <p>{{ observation.comment || "No comment added." }}</p>
+      <h2>{{ new Date(observation.createdAt).toLocaleString(locale) }}</h2>
+      <p>{{ observation.comment || t("map.noComment") }}</p>
       <p class="small">
         {{ observation.location.latitude.toFixed(5) }},
         {{ observation.location.longitude.toFixed(5) }} ·
-        {{ observation.photoIds?.length ?? 0 }} photos
+        {{ t("list.photos", { count: observation.photoIds?.length ?? 0 }) }}
       </p>
       <p>
-        Status: <strong>{{ observation.syncStatus }}</strong>
+        {{ t("list.status", { status: observation.syncStatus }) }}
       </p>
       <p v-if="observation.lastError" class="error">
         {{ observation.lastError }}
       </p>
       <div class="actions">
-        <RouterLink
-          class="button secondary"
-          :to="`/observation/${observation.id}/edit`"
-          >Edit observation</RouterLink
-        ><button class="secondary" @click="confirmId = observation.id">
-          Delete observation
-        </button>
+        <button class="secondary" @click="confirmId = observation.id">{{ t("list.delete") }}</button>
       </div>
       <div
         v-if="confirmId === observation.id"
         role="group"
-        aria-label="Confirm deletion"
+        :aria-label="t('list.confirmDelete')"
       >
         <p>
-          Delete this observation and its photos? If shared, removal from the
-          public map will be queued for the next sync.
+          {{ t("list.confirmDelete") }}
         </p>
         <button class="primary" @click="remove(observation.id)">
-          Confirm delete
+          {{ t("list.confirm") }}
         </button>
         <button class="secondary" @click="confirmId = ''">
-          Keep observation
+          {{ t("list.keep") }}
         </button>
       </div>
     </li>

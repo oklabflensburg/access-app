@@ -1,39 +1,31 @@
 <script setup lang="ts">
-import { nextTick, watch, onMounted, onBeforeUnmount } from "vue";
-import { useRoute } from "vue-router";
+import { onMounted, onBeforeUnmount, ref } from "vue";
 import PwaStatus from "./components/PwaStatus.vue";
+import MapView from "./views/MapView.vue";
+import NewObservationView from "./views/NewObservationView.vue";
+import MyObservationsView from "./views/MyObservationsView.vue";
 import { useSyncStore } from "./stores/sync";
+import { useI18n } from "vue-i18n";
 const sync = useSyncStore();
+const { t } = useI18n();
+const formKey = ref(0);
 let stop: (() => void) | undefined;
 onMounted(() => {
   stop = sync.start();
 });
 onBeforeUnmount(() => stop?.());
-
-const route = useRoute();
-watch(
-  () => route.path,
-  async () => {
-    await nextTick();
-    document.querySelector<HTMLElement>("h1")?.focus();
-  },
-);
 </script>
 
 <template>
-  <a class="skip-link" href="#main">Skip to content</a>
+  <a class="skip-link" href="#main">{{ t("app.skip") }}</a>
   <header class="site-header">
-    <RouterLink class="brand" to="/" aria-label="AccessApp home"
-      ><span aria-hidden="true" class="brand-icon">a</span>AccessApp</RouterLink
-    >
-    <nav aria-label="Main navigation">
-      <RouterLink to="/">Map</RouterLink
-      ><RouterLink to="/observations">My observations</RouterLink>
-    </nav>
+    <span class="brand"><span aria-hidden="true" class="brand-icon">a</span>AccessApp</span>
   </header>
-  <main id="main"><PwaStatus /><RouterView :key="route.fullPath" /></main>
-  <footer>
-    Saved on your device · No account needed · Community observations are not
-    verified
-  </footer>
+  <main id="main">
+    <PwaStatus />
+    <MapView />
+    <NewObservationView :key="formKey" @saved="formKey += 1" />
+    <MyObservationsView />
+  </main>
+  <footer>{{ t("app.footer") }}</footer>
 </template>

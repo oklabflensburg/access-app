@@ -20,7 +20,7 @@ async function runQueue(force: boolean) {
   const result = { synced: 0, failed: 0 };
   if (!navigator.onLine)
     throw new Error(
-      "You are offline. Observations will stay queued on this device.",
+      "Offline. Einträge bleiben auf diesem Gerät gespeichert.",
     );
   // A terminated tab can leave a row in syncing. The cross-tab lock makes recovery safe.
   const queue = await database.observations
@@ -36,7 +36,7 @@ async function runQueue(force: boolean) {
         const ack = await removeRemoteObservation(o);
         if (ack.id !== o.id || ack.revision !== o.revision)
           throw new Error(
-            "Deletion acknowledgement did not match. Retry required.",
+            "Löschung konnte nicht bestätigt werden.",
           );
       } else {
         const [sensors, photos] = await Promise.all([
@@ -46,18 +46,18 @@ async function runQueue(force: boolean) {
         const ack = await uploadObservation(o, sensors);
         if (ack.id !== o.id || ack.revision !== o.revision)
           throw new Error(
-            "The server has a different revision. Edit and save before retrying.",
+            "Der Eintrag wurde auf dem Server geändert.",
           );
         for (const id of o.photoIds ?? []) {
           const photo = photos.find((p) => p.id === id);
           if (!photo)
             throw new Error(
-              "A local photo is missing. Edit the observation and save again.",
+              "Ein lokales Foto fehlt.",
             );
           const photoAck = await uploadPhoto(o, photo);
           if (photoAck.id !== id)
             throw new Error(
-              "Photo acknowledgement did not match. Retry required.",
+              "Foto konnte nicht bestätigt werden.",
             );
         }
       }
@@ -78,7 +78,7 @@ async function runQueue(force: boolean) {
         lastError:
           cause instanceof Error
             ? cause.message
-            : "Upload failed. Please retry.",
+            : "Upload fehlgeschlagen.",
       });
       result.failed++;
     }

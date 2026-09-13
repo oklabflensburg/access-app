@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { syncObservations } from "../services/sync";
 import { useObservationStore } from "./observation";
+import { t } from "../i18n";
 export const useSyncStore = defineStore("sync", () => {
   const online = ref(navigator.onLine);
   const busy = ref(false);
@@ -17,20 +18,20 @@ export const useSyncStore = defineStore("sync", () => {
     try {
       localStorage.setItem("accessapp-auto-sync", String(value));
     } catch {
-      message.value = "This preference could not be saved for the next visit.";
+      message.value = t("sync.preferenceError");
     }
     if (value) void sync();
   }
   async function sync(force = false) {
     if (busy.value) return;
     busy.value = true;
-    message.value = "Synchronizing…";
+    message.value = t("sync.syncing");
     try {
       const result = await syncObservations(force);
-      message.value = `${result.synced} synchronized. ${result.failed} failed. Failed items remain queued for retry.`;
+      message.value = t("sync.result", result);
     } catch (cause) {
       message.value =
-        cause instanceof Error ? cause.message : "Synchronization failed.";
+        cause instanceof Error ? cause.message : t("sync.failed");
     } finally {
       busy.value = false;
       await useObservationStore().load();

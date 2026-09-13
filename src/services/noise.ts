@@ -6,7 +6,7 @@ export async function measureNoise(
 ): Promise<NoiseMeasurement> {
   if (!navigator.mediaDevices?.getUserMedia || !window.AudioContext)
     throw new Error(
-      "Microphone measurement requires a supported browser and HTTPS.",
+      "Lärmmessung benötigt HTTPS und Mikrofonzugriff.",
     );
   const audio = new AudioContext();
   let stream: MediaStream | undefined;
@@ -30,7 +30,7 @@ export async function measureNoise(
       signal,
       (late) => late.getTracks().forEach((t) => t.stop()),
     );
-    if (signal.aborted) throw new Error("Measurement cancelled.");
+    if (signal.aborted) throw new Error("Messung abgebrochen.");
     const source = audio.createMediaStreamSource(stream);
     const analyser = audio.createAnalyser();
     analyser.fftSize = 2048;
@@ -41,7 +41,7 @@ export async function measureNoise(
     let peak = 0;
     let count = 0;
     return await new Promise((resolve, reject) => {
-      const abort = () => reject(new Error("Measurement cancelled."));
+      const abort = () => reject(new Error("Messung abgebrochen."));
       signal.addEventListener("abort", abort, { once: true });
       interval = setInterval(() => {
         analyser.getFloatTimeDomainData(values);

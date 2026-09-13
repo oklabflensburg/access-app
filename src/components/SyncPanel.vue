@@ -3,7 +3,9 @@ import { onBeforeUnmount, ref } from "vue";
 import { liveQuery } from "dexie";
 import { database } from "../services/storage";
 import { useSyncStore } from "../stores/sync";
+import { useI18n } from "vue-i18n";
 const sync = useSyncStore();
+const { t } = useI18n();
 const pending = ref(0);
 const subscription = liveQuery(() =>
   database.observations
@@ -22,21 +24,16 @@ onBeforeUnmount(() => subscription.unsubscribe());
 </script>
 <template>
   <section class="panel sync-panel" aria-labelledby="sync-heading">
-    <h2 id="sync-heading">Share with the public map</h2>
+    <h2 id="sync-heading">{{ t("sync.title") }}</h2>
     <p>
-      Sync publishes ready observations, exact locations, comments, photos, and
-      optional measurements. Drafts stay private. Pending deletions are sent
-      too.
-    </p>
-    <p>
-      {{ sync.online ? "Online" : "Offline" }} · {{ pending }} queued changes
+      {{ sync.online ? t("sync.online") : t("sync.offline") }} · {{ t("sync.queued", { count: pending }) }}
     </p>
     <button
       class="primary"
       :disabled="sync.busy || !sync.online"
       @click="sync.sync(true)"
     >
-      {{ sync.busy ? "Synchronizing…" : "Share & sync now" }}
+      {{ sync.busy ? t("sync.syncing") : t("sync.share") }}
     </button>
     <label class="auto-sync"
       ><input
@@ -44,8 +41,7 @@ onBeforeUnmount(() => subscription.unsubscribe());
         :checked="sync.automatic"
         @change="sync.setAutomatic(($event.target as HTMLInputElement).checked)"
       />
-      Automatically share ready observations and retry while this app is
-      open</label
+      {{ t("sync.automatic") }}</label
     >
     <p v-if="sync.message" role="status">{{ sync.message }}</p>
   </section>

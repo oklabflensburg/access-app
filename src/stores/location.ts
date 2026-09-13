@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { getCurrentLocation } from "../services/geolocation";
 import type { LocationData } from "../types/location";
+import { t } from "../i18n";
 
 export const useLocationStore = defineStore("location", () => {
   const current = ref<LocationData | null>(null);
@@ -25,7 +26,7 @@ export const useLocationStore = defineStore("location", () => {
       error.value =
         cause instanceof Error
           ? cause.message
-          : "Could not find your location.";
+          : t("errors.location");
       return null;
     } finally {
       loading.value = false;

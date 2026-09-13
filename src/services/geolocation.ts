@@ -11,18 +11,18 @@ function requestPosition(
 function locationError(error: GeolocationPositionError): Error {
   return new Error(
     error.code === 1
-      ? "Location permission was denied. Allow location in your browser settings and try again."
+      ? "Standortfreigabe wurde verweigert."
       : error.code === 3
-        ? "Finding your location timed out. Move to an open area and try again."
-        : "Your location is temporarily unavailable. Check that Location Services and Wi-Fi are enabled, then try again.",
+        ? "Standortsuche hat zu lange gedauert."
+        : "Standort ist vorübergehend nicht verfügbar.",
   );
 }
 
 export async function getCurrentLocation(): Promise<LocationData> {
   if (!window.isSecureContext)
-    throw new Error("Location requires HTTPS or localhost.");
+    throw new Error("Standort benötigt HTTPS oder localhost.");
   if (!navigator.geolocation)
-    throw new Error("This browser does not support location.");
+    throw new Error("Dieser Browser unterstützt keinen Standort.");
 
   let position: GeolocationPosition;
   try {

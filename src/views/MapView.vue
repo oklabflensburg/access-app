@@ -8,8 +8,10 @@ import LocationDetails from "../components/LocationDetails.vue";
 import ManualLocationForm from "../components/ManualLocationForm.vue";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
+import { useI18n } from "vue-i18n";
 const location = useLocationStore();
 const observations = useObservationStore();
+const { t } = useI18n();
 const publicObservations = ref<Observation[]>([]);
 const publicError = ref("");
 const publicBusy = ref(false);
@@ -32,11 +34,9 @@ async function loadPublic() {
       (o) => !localIds.has(o.id),
     );
     if (result.nextCursor)
-      publicError.value =
-        "Showing the first 200 public observations. Additional observations may not appear.";
+      publicError.value = t("map.publicLimit");
   } catch {
-    publicError.value =
-      "Could not load the public map. Your local observations are still available.";
+    publicError.value = t("map.publicError");
   } finally {
     publicBusy.value = false;
   }
@@ -47,24 +47,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="page-heading">
-    <p class="eyebrow">A more accessible everyday</p>
-    <h1 tabindex="-1">
-      Every place has a story.<br />Help make it accessible.
-    </h1>
-    <p>Record entrances, ramps, and the details that make a difference.</p>
-  </div>
+  <h1 tabindex="-1">{{ t("map.title") }}</h1>
   <p v-if="observations.notice" class="success" role="status">
     {{ observations.notice }}
   </p>
   <div class="map-layout">
     <aside class="panel location-panel" aria-labelledby="location-heading">
-      <p class="eyebrow">Start where you are</p>
-      <h2 id="location-heading">Your location</h2>
-      <p>
-        Allow location access to place your observation accurately. Coordinates
-        are saved with your answers on this device.
-      </p>
+      <h2 id="location-heading">{{ t("map.location") }}</h2>
       <button
         class="secondary"
         :disabled="location.loading"
@@ -72,10 +61,10 @@ onMounted(() => {
       >
         {{
           location.loading
-            ? "Finding your location…"
+            ? t("map.locating")
             : location.current
-              ? "Update & center location"
-              : "Use my location"
+              ? t("map.updateLocation")
+              : t("map.locate")
         }}
       </button>
       <p v-if="location.error" class="error" role="alert">
@@ -88,43 +77,33 @@ onMounted(() => {
       <div aria-live="polite">
         <LocationDetails v-if="location.current" :location="location.current" />
       </div>
-      <RouterLink class="button primary" to="/observation/new"
-        >+ Add accessibility information</RouterLink
-      >
-      <p class="small">
-        Your location will be captured when you start a new observation.
-      </p>
     </aside>
     <div>
       <Map :location="location.current" :observations="markers" />
       <div class="map-caption">
-        <span>● Your location</span
-        ><span
-          >Numbered pins · Saved observations ({{
-            observations.observations.length
-          }})</span
-        >
+        <span>● {{ t("map.yourLocation") }}</span
+        ><span>{{ t("map.local", { count: observations.observations.length }) }}</span>
       </div>
     </div>
   </div>
   <div class="actions">
     <button class="secondary" :disabled="publicBusy" @click="loadPublic">
       {{
-        publicBusy ? "Loading public map…" : "Load public observations"
+        publicBusy ? t("map.loadingPublic") : t("map.loadPublic")
       }}</button
-    ><span>{{ publicObservations.length }} public observations loaded</span>
+    ><span>{{ t("map.publicLoaded", { count: publicObservations.length }) }}</span>
   </div>
   <p v-if="publicError" role="status">{{ publicError }}</p>
   <p v-if="observations.error" class="error" role="alert">
     {{ observations.error }}
     <button class="secondary" @click="observations.load()">
-      Retry loading
+      {{ t("map.retry") }}
     </button>
   </p>
   <p
     v-if="!observations.observations.length && !observations.error"
     class="empty-note"
   >
-    Your map starts here. Add your first observation to leave a marker.
+    {{ t("map.empty") }}
   </p>
 </template>

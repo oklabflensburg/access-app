@@ -3,11 +3,13 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import L from "leaflet";
 import type { LocationData } from "../types/location";
 import type { Observation } from "../types/observation";
+import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   location: LocationData | null;
   observations: Observation[];
 }>();
+const { t } = useI18n();
 const container = ref<HTMLDivElement>();
 const tileError = ref(false);
 let map: L.Map | undefined;
@@ -35,12 +37,12 @@ function drawLocation() {
       iconSize: [24, 24],
       iconAnchor: [12, 12],
     }),
-    title: "Your current location",
-    alt: "Your current location",
+    title: t("map.yourLocation"),
+    alt: t("map.yourLocation"),
   })
-    .bindPopup("Your current location")
+    .bindPopup(t("map.yourLocation"))
     .addTo(locationLayer);
-  marker.getElement()?.setAttribute("aria-label", "Your current location");
+  marker.getElement()?.setAttribute("aria-label", t("map.yourLocation"));
   map.setView(point, 17);
 }
 
@@ -51,16 +53,16 @@ function drawObservations() {
     const accessible = observation.accessibility.wheelchairAccessible;
     const label =
       accessible === null
-        ? "Wheelchair accessibility unknown"
+        ? t("map.unknown")
         : accessible
-          ? "Wheelchair accessible"
-          : "Not wheelchair accessible";
+          ? t("map.accessible")
+          : t("map.notAccessible");
     const popup = document.createElement("div");
     const title = document.createElement("strong");
     title.textContent = label;
     popup.append(title);
     const detail = document.createElement("p");
-    detail.textContent = observation.comment || "No comment added.";
+    detail.textContent = observation.comment || t("map.noComment");
     popup.append(detail);
     const marker = L.marker(
       [observation.location.latitude, observation.location.longitude],
@@ -71,15 +73,15 @@ function drawObservations() {
           iconSize: [36, 36],
           iconAnchor: [18, 36],
         }),
-        title: `Observation ${index + 1}: ${label}`,
-        alt: `Observation ${index + 1}: ${label}`,
+        title: t("map.entry", { number: index + 1, label }),
+        alt: t("map.entry", { number: index + 1, label }),
       },
     )
       .bindPopup(popup)
       .addTo(observationLayer);
     marker
       .getElement()
-      ?.setAttribute("aria-label", `Observation ${index + 1}: ${label}`);
+      ?.setAttribute("aria-label", t("map.entry", { number: index + 1, label }));
   });
   if (!props.location && props.observations.length) {
     map.fitBounds(
@@ -121,14 +123,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="map-frame" aria-label="Accessibility map">
+  <section class="map-frame" :aria-label="t('map.mapLabel')">
     <div
       ref="container"
       class="map"
-      aria-label="Map. Use arrow keys to pan and plus or minus to zoom."
+      :aria-label="t('map.mapHelp')"
     />
     <p v-if="tileError" class="map-warning" role="status">
-      Some map tiles could not load. Location and local saving still work.
+      {{ t("map.mapError") }}
     </p>
   </section>
 </template>
