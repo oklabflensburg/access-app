@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed } from "vue";
+import { useRouter } from "vue-router";
 import { getPublicObservations } from "../services/api";
 import { database } from "../services/storage";
 import type { Observation } from "../types/observation";
@@ -11,6 +12,7 @@ import Message from "primevue/message";
 const location = useLocationStore();
 const observations = useObservationStore();
 const { t } = useI18n();
+const router = useRouter();
 const publicObservations = ref<Observation[]>([]);
 const publicError = ref("");
 const publicBusy = ref(false);
@@ -21,6 +23,12 @@ const markers = computed(() => {
     ...publicObservations.value.filter((o) => !localIds.has(o.id)),
   ];
 });
+const ownedObservationIds = computed(
+  () => new Set(observations.observations.map((observation) => observation.id)),
+);
+function editObservation(id: string) {
+  void router.push({ name: "edit-observation", params: { id } });
+}
 async function loadPublic() {
   publicBusy.value = true;
   publicError.value = "";
@@ -48,7 +56,12 @@ onMounted(() => {
 
 <template>
   <div class="map-page">
-    <Map :location="location.current" :observations="markers" />
+    <Map
+      :location="location.current"
+      :observations="markers"
+      :owned-observation-ids="ownedObservationIds"
+      @select-observation="editObservation"
+    />
     <div class="map-status" aria-live="polite">
       <Message v-if="location.error" severity="error" role="alert">{{ location.error }}</Message>
       <Message v-else-if="publicError || observations.error" severity="error" role="alert">

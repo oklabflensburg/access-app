@@ -237,7 +237,6 @@ main {
   text-shadow: 0 0 3px white;
 }
 .observation-marker {
-  background: #18594b;
   color: white;
   border: 2px solid white;
   border-radius: 50% 50% 50% 0;
@@ -246,6 +245,12 @@ main {
   text-align: center;
   line-height: 32px;
   font-weight: 700;
+}
+.observation-marker--owned {
+  background: #18594b;
+}
+.observation-marker--other {
+  background: #7852a9;
 }
 .leaflet-control-zoom a {
   width: 44px !important;

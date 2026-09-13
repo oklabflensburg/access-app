@@ -8,7 +8,9 @@ import { useI18n } from "vue-i18n";
 const props = defineProps<{
   location: LocationData | null;
   observations: Observation[];
+  ownedObservationIds: ReadonlySet<string>;
 }>();
+const emit = defineEmits<{ selectObservation: [id: string] }>();
 const { t } = useI18n();
 const container = ref<HTMLDivElement>();
 const tileError = ref(false);
@@ -50,6 +52,7 @@ function drawObservations() {
   if (!map) return;
   observationLayer.clearLayers();
   props.observations.forEach((observation, index) => {
+    const isOwned = props.ownedObservationIds.has(observation.id);
     const accessible = observation.accessibility.wheelchairAccessible;
     const label =
       accessible === null
@@ -68,7 +71,7 @@ function drawObservations() {
       [observation.location.latitude, observation.location.longitude],
       {
         icon: L.divIcon({
-          className: "observation-marker",
+          className: `observation-marker observation-marker--${isOwned ? "owned" : "other"}`,
           html: `<span>${index + 1}</span>`,
           iconSize: [36, 36],
           iconAnchor: [18, 36],
@@ -76,9 +79,9 @@ function drawObservations() {
         title: t("map.entry", { number: index + 1, label }),
         alt: t("map.entry", { number: index + 1, label }),
       },
-    )
-      .bindPopup(popup)
-      .addTo(observationLayer);
+    ).addTo(observationLayer);
+    if (isOwned) marker.on("click", () => emit("selectObservation", observation.id));
+    else marker.bindPopup(popup);
     marker
       .getElement()
       ?.setAttribute("aria-label", t("map.entry", { number: index + 1, label }));

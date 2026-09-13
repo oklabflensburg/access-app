@@ -7,6 +7,7 @@ import Button from "primevue/button";
 import Card from "primevue/card";
 import Dialog from "primevue/dialog";
 import Message from "primevue/message";
+import { RouterLink } from "vue-router";
 const store = useObservationStore();
 const { t, locale } = useI18n();
 const confirmId = ref("");
@@ -51,6 +52,9 @@ async function remove(id: string) {
         {{ observation.lastError }}
       </Message>
       <div class="actions">
+        <RouterLink :to="{ name: 'edit-observation', params: { id: observation.id } }">
+          {{ t("list.edit") }}
+        </RouterLink>
         <Button outlined severity="danger" @click="confirmId = observation.id" :label="t('list.delete')" />
       </div>
       <Dialog

@@ -52,6 +52,8 @@ export const messages = {
     },
     observation: {
       title: "Neuer Eintrag",
+      edit: "Eintrag bearbeiten",
+      notFound: "Dieser Eintrag ist nicht mehr verfügbar.",
       save: "Speichern",
       saving: "Wird gespeichert…",
       comment: "Kommentar",
@@ -95,6 +97,7 @@ export const messages = {
     },
     list: {
       title: "Meine Einträge",
+      edit: "Eintrag bearbeiten",
       delete: "Löschen",
       confirmDelete: "Eintrag und Fotos löschen?",
       confirm: "Löschen bestätigen",

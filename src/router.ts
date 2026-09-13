@@ -17,6 +17,11 @@ export default createRouter({
       component: NewObservationView,
     },
     {
+      path: "/observation/:id/edit",
+      name: "edit-observation",
+      component: NewObservationView,
+    },
+    {
       path: "/observations",
       name: "my-observations",
       component: MyObservationsView,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute, useRouter } from "vue-router";
 import Button from "primevue/button";
 import Card from "primevue/card";
 import InputTextarea from "primevue/textarea";
@@ -13,13 +14,18 @@ import SensorMeasurements from "../components/SensorMeasurements.vue";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
 import { emptyAccessibility } from "../types/observation";
+import { database } from "../services/storage";
 import type { LocationData } from "../types/location";
 import type { Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
 
-const emit = defineEmits<{ saved: [] }>();
 const { t } = useI18n();
-const id = crypto.randomUUID();
+const route = useRoute();
+const router = useRouter();
+const id = typeof route.params.id === "string" ? route.params.id : crypto.randomUUID();
+const editing = computed(() => typeof route.params.id === "string");
+const createdAt = ref<string>();
+const revision = ref<number>();
 const photos = ref<Photo[]>([]);
 const sensors = ref<SensorData>({ observationId: id });
 const photoBusy = ref(false);
@@ -39,21 +45,47 @@ function useManualLocation(selected: LocationData) {
   locationStore.setManualLocation(selected);
   location.value = { ...selected };
 }
-onMounted(() => void captureLocation());
+async function loadObservation() {
+  const observation = await database.observations.get(id);
+  if (!observation || observation.deleted) {
+    error.value = t("observation.notFound");
+    return;
+  }
+  const [savedPhotos, savedSensors] = await Promise.all([
+    database.photos.where("observationId").equals(id).toArray(),
+    database.sensors.get(id),
+  ]);
+  location.value = { ...observation.location };
+  accessibility.value = { ...observation.accessibility };
+  comment.value = observation.comment;
+  createdAt.value = observation.createdAt;
+  revision.value = observation.revision;
+  photos.value = savedPhotos;
+  sensors.value = savedSensors ?? { observationId: id };
+}
+onMounted(() => {
+  if (editing.value) void loadObservation();
+  else void captureLocation();
+});
 async function save() {
   if (saving.value || !location.value || photoBusy.value || sensorBusy.value)
     return;
+  if (editing.value && (!createdAt.value || revision.value === undefined)) {
+    error.value = t("observation.notFound");
+    return;
+  }
   saving.value = true;
   error.value = "";
   try {
     await store.save(
       {
         id,
-        createdAt: new Date().toISOString(),
+        createdAt: createdAt.value ?? new Date().toISOString(),
         location: { ...location.value },
         accessibility: { ...accessibility.value },
         comment: comment.value.trim(),
         syncStatus: "ready",
+        revision: revision.value,
       },
       photos.value,
       sensors.value,
@@ -64,13 +96,13 @@ async function save() {
     return;
   }
   saving.value = false;
-  emit("saved");
+  await router.push({ name: "map" });
 }
 </script>
 
 <template>
   <div class="form-page" id="new-observation">
-    <h1>{{ t("observation.title") }}</h1>
+    <h1>{{ editing ? t("observation.edit") : t("observation.title") }}</h1>
     <Card class="captured-location" aria-labelledby="captured-heading">
       <template #title><h2 id="captured-heading">{{ t("map.location") }}</h2></template>
       <template #content>
