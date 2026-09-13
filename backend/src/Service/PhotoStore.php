@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use Doctrine\DBAL\Connection;
+use App\Entity\Media;
+use App\Entity\Observation;
+use Doctrine\DBAL\LockMode;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -14,7 +17,7 @@ use Symfony\Component\HttpKernel\Exception\UnsupportedMediaTypeHttpException;
 final class PhotoStore
 {
     public function __construct(
-        private readonly Connection $connection,
+        private readonly EntityManagerInterface $entityManager,
         private readonly PhotoStorage $photoStorage,
     ) {
     }
@@ -61,7 +64,7 @@ final class PhotoStore
         $wroteFile = false;
 
         try {
-            $this->connection->transactional(function (Connection $connection) use (
+            $this->entityManager->wrapInTransaction(function () use (
                 $observationId,
                 $photoId,
                 $revision,
@@ -74,53 +77,44 @@ final class PhotoStore
                 &$oldStorageKey,
                 &$wroteFile,
             ): void {
-                $observation = $connection->fetchAssociative(
-                    'SELECT revision, edit_token_hash, deleted FROM observations WHERE id = :id FOR UPDATE',
-                    ['id' => $observationId],
+                $this->entityManager->clear(Observation::class);
+                $this->entityManager->clear(Media::class);
+                $observation = $this->entityManager->find(
+                    Observation::class,
+                    $observationId,
+                    LockMode::PESSIMISTIC_WRITE,
                 );
-                if (false === $observation || $this->toBool($observation['deleted'])) {
+                if (null === $observation || $observation->isDeleted()) {
                     throw new NotFoundHttpException('Observation not found.');
                 }
-                if (!hash_equals((string) $observation['edit_token_hash'], $tokenHash)) {
+                if (!hash_equals($observation->getEditTokenHash(), $tokenHash)) {
                     throw new AccessDeniedHttpException('Edit token does not match this observation.');
                 }
-                if ($revision !== (int) $observation['revision']) {
+                if ($revision !== $observation->getRevision()) {
                     throw new ConflictHttpException('Photo does not belong to the current revision.');
                 }
 
-                $media = $connection->fetchAssociative('SELECT * FROM media WHERE id = :id FOR UPDATE', ['id' => $photoId]);
-                if (false === $media || $media['observation_id'] !== $observationId) {
+                $media = $this->entityManager->find(Media::class, $photoId, LockMode::PESSIMISTIC_WRITE);
+                if (null === $media || !$media->belongsTo($observationId)) {
                     throw new ConflictHttpException('Photo does not belong to the current revision.');
                 }
-                if (null !== $media['sha256'] && $media['sha256'] !== $digest) {
+                if (null !== $media->getSha256() && $media->getSha256() !== $digest) {
                     throw new ConflictHttpException('Photo id already used for different content.');
                 }
 
-                $oldStorageKey = $media['storage_key'];
+                $oldStorageKey = $media->getStorageKey();
                 if (!is_file($this->photoStorage->path($storageKey))) {
                     $this->photoStorage->write($storageKey, $bytes);
                     $wroteFile = true;
                 }
-                $connection->executeStatement(<<<'SQL'
-                    UPDATE media SET
-                        storage_key = :storage_key,
-                        original_filename = :original_filename,
-                        mime_type = 'image/jpeg',
-                        byte_size = :byte_size,
-                        sha256 = :sha256,
-                        width_px = :width_px,
-                        height_px = :height_px,
-                        uploaded_at = NOW()
-                    WHERE id = :id
-                    SQL, [
-                    'id' => $photoId,
-                    'storage_key' => $storageKey,
-                    'original_filename' => $upload->getClientOriginalName(),
-                    'byte_size' => strlen($bytes),
-                    'sha256' => $digest,
-                    'width_px' => $imageInfo[0],
-                    'height_px' => $imageInfo[1],
-                ]);
+                $media->setUpload(
+                    $storageKey,
+                    $digest,
+                    $upload->getClientOriginalName(),
+                    strlen($bytes),
+                    $imageInfo[0],
+                    $imageInfo[1],
+                );
             });
         } catch (\Throwable $error) {
             if ($wroteFile) {
@@ -140,25 +134,17 @@ final class PhotoStore
     {
         $this->assertUuid($observationId);
         $this->assertUuid($photoId);
-        $storageKey = $this->connection->fetchOne(<<<'SQL'
-            SELECT media.storage_key
-            FROM media
-            INNER JOIN observations ON observations.id = media.observation_id
-            WHERE media.id = :photo_id
-                AND media.observation_id = :observation_id
-                AND media.uploaded_at IS NOT NULL
-                AND NOT observations.deleted
-            SQL, ['photo_id' => $photoId, 'observation_id' => $observationId]);
-        if (false === $storageKey || !is_file($path = $this->photoStorage->path((string) $storageKey))) {
+        $media = $this->entityManager->find(Media::class, $photoId);
+        if (null === $media
+            || !$media->belongsTo($observationId)
+            || !$media->isUploaded()
+            || $media->getObservation()->isDeleted()
+            || null === $media->getStorageKey()
+            || !is_file($path = $this->photoStorage->path($media->getStorageKey()))) {
             throw new NotFoundHttpException('Photo not found.');
         }
 
         return $path;
-    }
-
-    private function toBool(mixed $value): bool
-    {
-        return true === $value || 1 === $value || '1' === $value || 't' === $value || 'true' === $value;
     }
 
     private function assertUuid(string $value): void

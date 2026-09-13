@@ -33,9 +33,20 @@ Personal accessibility profiles and accessible route planning are explicitly def
 - Retry interrupted uploads without creating duplicates.
 - Reject stale edits by using an observation revision number.
 - Authenticate edits and deletions with an observation-specific edit token.
+  editToken is a per-observation capability token: whoever retains it may modify or delete that observation.
+  • The client creates it with crypto.randomUUID() when an observation is first saved locally, then preserves it across edits in IndexedDB.
+  • On create/update, photo upload, and delete, the client sends it as Authorization: Bearer <editToken>.
+  • The backend hashes the supplied token with SHA-256 and stores/compares only that hash (edit_token_hash).
+  •  A missing/mismatched token is rejected (401/403); GET/list responses deliberately omit it, so viewing a public observation does not grant edit access.
+  • It works alongside revision: the token proves edit authority, while the revision prevents stale updates and makes retries idempotent.
 - Keep deletion tombstones so an old offline client cannot recreate deleted data.
 - Load public observations for the visible map area.
 
+- current state of implementation
+next Milestones:
+
+### Milestone 3-
+- replace the anonymoous token based authentication system with a real user registration.
 ## Data model principles
 
 - An **observation** is a contributor's report and contains the original questionnaire answers and measurements.
