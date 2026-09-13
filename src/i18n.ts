@@ -6,6 +6,9 @@ export const messages = {
       skip: "Zum Inhalt",
       footer: "Lokal gespeichert",
       saved: "Eintrag gespeichert.",
+      menu: "Menü",
+      map: "Karte",
+      observation: "Beobachtung",
     },
     map: {
       title: "Karte",
