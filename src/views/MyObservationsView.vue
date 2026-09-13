@@ -2,7 +2,6 @@
 import { onMounted, ref } from "vue";
 import { useObservationStore } from "../stores/observation";
 import { deleteObservation } from "../services/storage";
-import SyncPanel from "../components/SyncPanel.vue";
 import { useI18n } from "vue-i18n";
 import Button from "primevue/button";
 import Card from "primevue/card";
@@ -25,7 +24,6 @@ async function remove(id: string) {
 </script>
 <template>
   <h1>{{ t("list.title") }}</h1>
-  <SyncPanel />
   <Message v-if="error || store.error" severity="error" role="alert">
     {{ error || store.error }}
   </Message>

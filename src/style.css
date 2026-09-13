@@ -527,6 +527,27 @@ input::file-selector-button {
   background: #e8f2e4;
   color: #18594b;
 }
+.menu-sync {
+  margin: 8px 0 0;
+  border-top: 1px solid #dce4dc;
+  padding-top: 8px;
+}
+.menu-sync.p-card {
+  border: 0;
+  box-shadow: none;
+}
+.menu-sync .p-card-body {
+  padding: 8px 4px 0;
+}
+.menu-sync .p-card-title {
+  font-size: 1rem;
+}
+.menu-sync .p-card-content {
+  padding: 0;
+}
+.menu-sync .auto-sync {
+  margin: 12px 0 0;
+}
 .map-main {
   padding: 0;
 }
@@ -550,17 +571,10 @@ input::file-selector-button {
 .map-status .p-message {
   margin: 0;
 }
-.observation-page {
+#main:not(.map-main) {
   max-width: 720px;
   margin: 0 auto;
   padding: 80px 16px 24px;
-}
-.observation-page > .form-page,
-.observation-page > .form-page + * {
-  margin-bottom: 48px;
-}
-.observation-page footer {
-  padding: 20px 0 0;
 }
 @media (max-width: 800px) {
   .site-header {
@@ -612,7 +626,7 @@ input::file-selector-button {
     padding-right: 32px;
     padding-left: 32px;
   }
-  .observation-page {
+  #main:not(.map-main) {
     padding-top: 96px;
   }
 }

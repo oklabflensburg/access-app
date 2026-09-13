@@ -4,6 +4,8 @@ import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useSyncStore } from "./stores/sync";
 import { useLocationStore } from "./stores/location";
 import { useI18n } from "vue-i18n";
+import SyncPanel from "./components/SyncPanel.vue";
+import PwaStatus from "./components/PwaStatus.vue";
 
 const sync = useSyncStore();
 const location = useLocationStore();
@@ -34,9 +36,13 @@ onBeforeUnmount(() => stop?.());
       <RouterLink to="/" @click="menuOpen = false">
         <i class="pi pi-map" aria-hidden="true" /> {{ t("app.map") }}
       </RouterLink>
-      <RouterLink to="/beobachtung" @click="menuOpen = false">
+      <RouterLink to="/observation/new" @click="menuOpen = false">
         <i class="pi pi-pencil" aria-hidden="true" /> {{ t("app.observation") }}
       </RouterLink>
+      <RouterLink to="/observations" @click="menuOpen = false">
+        <i class="pi pi-list" aria-hidden="true" /> {{ t("app.observations") }}
+      </RouterLink>
+      <SyncPanel class="menu-sync" />
     </nav>
     <button
       v-if="route.name === 'map'"
@@ -50,6 +56,8 @@ onBeforeUnmount(() => stop?.());
     </button>
   </header>
   <main id="main" :class="{ 'map-main': route.name === 'map' }">
+    <PwaStatus v-if="route.name !== 'map'" />
     <RouterView />
+    <footer v-if="route.name !== 'map'">{{ t("app.footer") }}</footer>
   </main>
 </template>

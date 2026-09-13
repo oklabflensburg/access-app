@@ -8,7 +8,8 @@ export const messages = {
       saved: "Eintrag gespeichert.",
       menu: "Menü",
       map: "Karte",
-      observation: "Beobachtung",
+      observation: "Neue Beobachtung anlegen",
+      observations: "Meine Beobachtungen",
     },
     map: {
       title: "Karte",

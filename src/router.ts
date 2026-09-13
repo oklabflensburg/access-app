@@ -1,11 +1,25 @@
 import { createRouter, createWebHistory } from "vue-router";
 import MapView from "./views/MapView.vue";
-import ObservationView from "./views/ObservationView.vue";
+import NewObservationView from "./views/NewObservationView.vue";
+import MyObservationsView from "./views/MyObservationsView.vue";
 
 export default createRouter({
   history: createWebHistory(),
   routes: [
     { path: "/", name: "map", component: MapView },
-    { path: "/beobachtung", name: "observation", component: ObservationView },
+    {
+      path: "/observation",
+      redirect: { name: "new-observation" },
+    },
+    {
+      path: "/observation/new",
+      name: "new-observation",
+      component: NewObservationView,
+    },
+    {
+      path: "/observations",
+      name: "my-observations",
+      component: MyObservationsView,
+    },
   ],
 });
