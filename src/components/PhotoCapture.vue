@@ -3,6 +3,11 @@ import { onBeforeUnmount, ref, watch } from "vue";
 import { preparePhoto } from "../services/camera";
 import type { Photo } from "../types/observation";
 import { useI18n } from "vue-i18n";
+import Button from "primevue/button";
+import FileUpload, {
+  type FileUploadUploaderEvent,
+} from "primevue/fileupload";
+import Message from "primevue/message";
 const props = defineProps<{ observationId: string }>();
 const photos = defineModel<Photo[]>({ required: true });
 const emit = defineEmits<{ busy: [value: boolean] }>();
@@ -29,10 +34,8 @@ onBeforeUnmount(() => {
   disposed = true;
   revoke();
 });
-async function add(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const files = Array.from(input.files ?? []);
-  input.value = "";
+async function add(event: FileUploadUploaderEvent) {
+  const files = Array.isArray(event.files) ? event.files : [event.files];
   if (!files.length) return;
   error.value = "";
   busy.value = true;
@@ -57,39 +60,42 @@ async function add(event: Event) {
   <section aria-labelledby="photos-heading" class="optional-section">
     <h2 id="photos-heading">{{ t("observation.photos") }} <span class="optional">({{ t("observation.optional") }})</span></h2>
     <div class="field">
-      <label for="camera">{{ t("observation.takePhoto") }}</label
-      ><input
+      <label for="camera">{{ t("observation.takePhoto") }}</label>
+      <FileUpload
         id="camera"
-        type="file"
+        mode="basic"
         accept="image/jpeg,image/png,image/webp"
-        capture="environment"
+        :choose-label="t('observation.takePhoto')"
+        :custom-upload="true"
+        :input-props="{ capture: 'environment' }"
         :disabled="busy"
-        @change="add"
+        @uploader="add"
       />
     </div>
     <div class="field">
-      <label for="photo-files">{{ t("observation.choosePhotos") }}</label
-      ><input
+      <label for="photo-files">{{ t("observation.choosePhotos") }}</label>
+      <FileUpload
         id="photo-files"
-        type="file"
         accept="image/jpeg,image/png,image/webp"
         multiple
+        mode="basic"
+        :choose-label="t('observation.choosePhotos')"
+        :custom-upload="true"
         :disabled="busy"
-        @change="add"
+        @uploader="add"
       />
     </div>
     <p v-if="busy" role="status">{{ t("observation.preparingPhotos") }}</p>
-    <p v-if="error" role="alert" class="error">{{ error }}</p>
+    <Message v-if="error" severity="error" role="alert">{{ error }}</Message>
     <ul class="photo-grid">
       <li v-for="(photo, index) in previews" :key="photo.id">
-        <img :src="photo.url" :alt="t('observation.photo', { number: index + 1 })" /><button
+        <img :src="photo.url" :alt="t('observation.photo', { number: index + 1 })" /><Button
           type="button"
-          class="secondary"
+          outlined
           :disabled="busy"
           @click="photos = photos.filter((p) => p.id !== photo.id)"
-        >
-          {{ t("observation.removePhoto", { number: index + 1 }) }}
-        </button>
+          :label="t('observation.removePhoto', { number: index + 1 })"
+        />
       </li>
     </ul>
   </section>

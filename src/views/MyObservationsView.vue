@@ -4,6 +4,10 @@ import { useObservationStore } from "../stores/observation";
 import { deleteObservation } from "../services/storage";
 import SyncPanel from "../components/SyncPanel.vue";
 import { useI18n } from "vue-i18n";
+import Button from "primevue/button";
+import Card from "primevue/card";
+import Dialog from "primevue/dialog";
+import Message from "primevue/message";
 const store = useObservationStore();
 const { t, locale } = useI18n();
 const confirmId = ref("");
@@ -22,9 +26,9 @@ async function remove(id: string) {
 <template>
   <h1>{{ t("list.title") }}</h1>
   <SyncPanel />
-  <p v-if="error || store.error" class="error" role="alert">
+  <Message v-if="error || store.error" severity="error" role="alert">
     {{ error || store.error }}
-  </p>
+  </Message>
   <p v-if="!store.observations.length">
     {{ t("list.empty") }}
   </p>
@@ -32,9 +36,10 @@ async function remove(id: string) {
     <li
       v-for="observation in store.observations"
       :key="observation.id"
-      class="panel"
     >
-      <h2>{{ new Date(observation.createdAt).toLocaleString(locale) }}</h2>
+      <Card>
+      <template #title><h2>{{ new Date(observation.createdAt).toLocaleString(locale) }}</h2></template>
+      <template #content>
       <p>{{ observation.comment || t("map.noComment") }}</p>
       <p class="small">
         {{ observation.location.latitude.toFixed(5) }},
@@ -44,27 +49,27 @@ async function remove(id: string) {
       <p>
         {{ t("list.status", { status: observation.syncStatus }) }}
       </p>
-      <p v-if="observation.lastError" class="error">
+      <Message v-if="observation.lastError" severity="error">
         {{ observation.lastError }}
-      </p>
+      </Message>
       <div class="actions">
-        <button class="secondary" @click="confirmId = observation.id">{{ t("list.delete") }}</button>
+        <Button outlined severity="danger" @click="confirmId = observation.id" :label="t('list.delete')" />
       </div>
-      <div
+      <Dialog
         v-if="confirmId === observation.id"
-        role="group"
-        :aria-label="t('list.confirmDelete')"
+        modal
+        :visible="true"
+        :header="t('list.confirmDelete')"
+        @update:visible="confirmId = ''"
       >
-        <p>
-          {{ t("list.confirmDelete") }}
-        </p>
-        <button class="primary" @click="remove(observation.id)">
-          {{ t("list.confirm") }}
-        </button>
-        <button class="secondary" @click="confirmId = ''">
-          {{ t("list.keep") }}
-        </button>
-      </div>
+        <p>{{ t("list.confirmDelete") }}</p>
+        <template #footer>
+          <Button severity="danger" @click="remove(observation.id)" :label="t('list.confirm')" />
+          <Button outlined @click="confirmId = ''" :label="t('list.keep')" />
+        </template>
+      </Dialog>
+      </template>
+      </Card>
     </li>
   </ul>
 </template>

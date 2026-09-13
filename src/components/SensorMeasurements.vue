@@ -5,6 +5,8 @@ import { measureMotion } from "../services/motion";
 import { measureLight } from "../services/light";
 import type { SensorData } from "../types/sensors";
 import { useI18n } from "vue-i18n";
+import Button from "primevue/button";
+import Message from "primevue/message";
 const model = defineModel<SensorData>({ required: true });
 const emit = defineEmits<{ busy: [value: boolean] }>();
 const { t } = useI18n();
@@ -57,66 +59,58 @@ onBeforeUnmount(() => {
     <h2 id="sensors-heading">
       {{ t("observation.measurements") }} <span class="optional">({{ t("observation.optional") }})</span>
     </h2>
-    <button
+    <Button
       type="button"
-      class="secondary"
+      outlined
       :disabled="!!active"
       @click="record('noise')"
-    >
-      {{ t("observation.noise") }}
-    </button>
+      :label="t('observation.noise')"
+    />
     <p v-if="model.noise">
       {{ t("observation.noiseValue", { average: model.noise.averageLevel.toFixed(3), peak: model.noise.peakLevel.toFixed(3) }) }}
-      <button
+      <Button
         type="button"
-        class="secondary"
+        outlined
         @click="model = { ...model, noise: undefined }"
-      >
-        {{ t("observation.removeNoise") }}
-      </button>
+        :label="t('observation.removeNoise')"
+      />
     </p>
-    <button
+    <Button
       type="button"
-      class="secondary"
+      outlined
       :disabled="!!active"
       @click="record('motion')"
-    >
-      {{ t("observation.motion") }}
-    </button>
+      :label="t('observation.motion')"
+    />
     <p v-if="model.motion?.length">
       {{ t("observation.motionValue", { count: model.motion.length }) }}
-      <button
+      <Button
         type="button"
-        class="secondary"
+        outlined
         @click="model = { ...model, motion: undefined }"
-      >
-        {{ t("observation.removeMotion") }}
-      </button>
+        :label="t('observation.removeMotion')"
+      />
     </p>
-    <button
+    <Button
       type="button"
-      class="secondary"
+      outlined
       :disabled="!!active"
       @click="record('light')"
-    >
-      {{ t("observation.light") }}
-    </button>
+      :label="t('observation.light')"
+    />
     <p v-if="model.light?.length">
       {{ t("observation.lightValue", { count: model.light.length }) }}
-      <button
+      <Button
         type="button"
-        class="secondary"
+        outlined
         @click="model = { ...model, light: undefined }"
-      >
-        {{ t("observation.removeLight") }}
-      </button>
+        :label="t('observation.removeLight')"
+      />
     </p>
     <p v-if="active" role="status">
       {{ t("observation.measuring", { kind: active }) }}
-      <button type="button" class="secondary" @click="controller?.abort()">
-        {{ t("observation.cancel") }}
-      </button>
+      <Button type="button" outlined @click="controller?.abort()" :label="t('observation.cancel')" />
     </p>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <Message v-if="error" severity="error" role="alert">{{ error }}</Message>
   </section>
 </template>

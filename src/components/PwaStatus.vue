@@ -1,28 +1,27 @@
 <script setup lang="ts">
 import { useRegisterSW } from "virtual:pwa-register/vue";
 import { useI18n } from "vue-i18n";
+import Button from "primevue/button";
+import Message from "primevue/message";
 const { offlineReady, needRefresh, updateServiceWorker } = useRegisterSW();
 const { t } = useI18n();
 </script>
 <template>
-  <div v-if="offlineReady || needRefresh" class="pwa-status" role="status">
+  <Message v-if="offlineReady || needRefresh" class="pwa-status" severity="success" role="status">
     <template v-if="needRefresh"
       >{{ t("pwa.update") }}
-      <button class="secondary" @click="updateServiceWorker(true)">
-        {{ t("pwa.reload") }}
-      </button></template
+      <Button outlined @click="updateServiceWorker(true)" :label="t('pwa.reload')" /></template
     >
     <template v-else
       >{{ t("pwa.ready") }}</template
     >
-    <button
-      class="secondary"
+    <Button
+      outlined
       @click="
         offlineReady = false;
         needRefresh = false;
       "
-    >
-      {{ t("pwa.dismiss") }}
-    </button>
-  </div>
+      :label="t('pwa.dismiss')"
+    />
+  </Message>
 </template>

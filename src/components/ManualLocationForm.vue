@@ -8,20 +8,16 @@ import Message from "primevue/message";
 
 const emit = defineEmits<{ selected: [location: LocationData] }>();
 const { t } = useI18n();
-const latitude = ref<string | number>("");
-const longitude = ref<string | number>("");
+const latitude = ref<number | null>(null);
+const longitude = ref<number | null>(null);
 const error = ref("");
 
 function selectLocation() {
-  const rawLatitude = String(latitude.value).trim();
-  const rawLongitude = String(longitude.value).trim();
-  const parsedLatitude = Number(rawLatitude);
-  const parsedLongitude = Number(rawLongitude);
+  const parsedLatitude = latitude.value;
+  const parsedLongitude = longitude.value;
   if (
-    rawLatitude === "" ||
-    rawLongitude === "" ||
-    !Number.isFinite(parsedLatitude) ||
-    !Number.isFinite(parsedLongitude) ||
+    parsedLatitude === null ||
+    parsedLongitude === null ||
     parsedLatitude < -90 ||
     parsedLatitude > 90 ||
     parsedLongitude < -180 ||
@@ -55,8 +51,8 @@ function selectLocation() {
           id="latitude"
           v-model="latitude"
           name="latitude"
-          min="-90"
-          max="90"
+          :min="-90"
+          :max="90"
           :min-fraction-digits="0"
           :max-fraction-digits="8"
           required
@@ -68,8 +64,8 @@ function selectLocation() {
           id="longitude"
           v-model="longitude"
           name="longitude"
-          min="-180"
-          max="180"
+          :min="-180"
+          :max="180"
           :min-fraction-digits="0"
           :max-fraction-digits="8"
           required
