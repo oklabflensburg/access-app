@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { AccessibilityData } from "../types/observation";
 import { useI18n } from "vue-i18n";
+import RadioButton from "primevue/radiobutton";
+import Select from "primevue/select";
 const model = defineModel<AccessibilityData>({ required: true });
 const { t } = useI18n();
 const questions = [
@@ -19,47 +21,50 @@ const answers = [
 <template>
   <fieldset v-for="question in questions" :key="question.key">
     <legend>{{ t(question.label) }}</legend>
-    <div class="choices">
+    <div class="choices" role="radiogroup">
       <label v-for="answer in answers" :key="answer.label" class="choice">
-        <input
+        <RadioButton
           v-model="model[question.key]"
-          type="radio"
           :name="question.key"
           :value="answer.value"
-        />{{ t(answer.label) }}
+        /> <span>{{ t(answer.label) }}</span>
       </label>
     </div>
   </fieldset>
   <fieldset>
     <legend>{{ t("observation.steps") }}</legend>
-    <div class="choices wrap">
+    <div class="choices wrap" role="radiogroup">
       <label v-for="step in [0, 1, 2, 3] as const" :key="step" class="choice"
-        ><input
+        ><RadioButton
           v-model="model.steps"
-          type="radio"
           name="steps"
           :value="step"
-        />{{ step === 3 ? "3+" : step }}</label
+        /> <span>{{ step === 3 ? "3+" : step }}</span></label
       >
       <label class="choice"
-        ><input
+        ><RadioButton
           v-model="model.steps"
-          type="radio"
           name="steps"
           :value="null"
-        />{{ t("observation.unknown") }}</label
+        /> <span>{{ t("observation.unknown") }}</span></label
       >
     </div>
   </fieldset>
   <div class="field">
     <label for="surface">{{ t("observation.surface") }}</label>
-    <select id="surface" v-model="model.surface">
-      <option :value="null">{{ t("observation.unknown") }}</option>
-      <option value="smooth">{{ t("observation.smooth") }}</option>
-      <option value="uneven">{{ t("observation.uneven") }}</option>
-      <option value="cobblestone">{{ t("observation.cobblestone") }}</option>
-      <option value="gravel">{{ t("observation.gravel") }}</option>
-      <option value="other">{{ t("observation.other") }}</option>
-    </select>
+    <Select
+      id="surface"
+      v-model="model.surface"
+      :options="[
+        { label: t('observation.unknown'), value: null },
+        { label: t('observation.smooth'), value: 'smooth' },
+        { label: t('observation.uneven'), value: 'uneven' },
+        { label: t('observation.cobblestone'), value: 'cobblestone' },
+        { label: t('observation.gravel'), value: 'gravel' },
+        { label: t('observation.other'), value: 'other' },
+      ]"
+      option-label="label"
+      option-value="value"
+    />
   </div>
 </template>

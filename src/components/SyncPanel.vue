@@ -4,6 +4,9 @@ import { liveQuery } from "dexie";
 import { database } from "../services/storage";
 import { useSyncStore } from "../stores/sync";
 import { useI18n } from "vue-i18n";
+import Button from "primevue/button";
+import Card from "primevue/card";
+import Checkbox from "primevue/checkbox";
 const sync = useSyncStore();
 const { t } = useI18n();
 const pending = ref(0);
@@ -23,26 +26,27 @@ const subscription = liveQuery(() =>
 onBeforeUnmount(() => subscription.unsubscribe());
 </script>
 <template>
-  <section class="panel sync-panel" aria-labelledby="sync-heading">
-    <h2 id="sync-heading">{{ t("sync.title") }}</h2>
+  <Card class="sync-panel" aria-labelledby="sync-heading">
+    <template #title><h2 id="sync-heading">{{ t("sync.title") }}</h2></template>
+    <template #content>
     <p>
       {{ sync.online ? t("sync.online") : t("sync.offline") }} · {{ t("sync.queued", { count: pending }) }}
     </p>
-    <button
-      class="primary"
+    <Button
       :disabled="sync.busy || !sync.online"
       @click="sync.sync(true)"
-    >
-      {{ sync.busy ? t("sync.syncing") : t("sync.share") }}
-    </button>
+      :loading="sync.busy"
+      :label="sync.busy ? t('sync.syncing') : t('sync.share')"
+    />
     <label class="auto-sync"
-      ><input
-        type="checkbox"
-        :checked="sync.automatic"
-        @change="sync.setAutomatic(($event.target as HTMLInputElement).checked)"
+      ><Checkbox
+        :model-value="sync.automatic"
+        binary
+        @update:model-value="sync.setAutomatic"
       />
       {{ t("sync.automatic") }}</label
     >
     <p v-if="sync.message" role="status">{{ sync.message }}</p>
-  </section>
+    </template>
+  </Card>
 </template>

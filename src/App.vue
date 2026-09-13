@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount, ref } from "vue";
 import PwaStatus from "./components/PwaStatus.vue";
+import Toolbar from "primevue/toolbar";
 import MapView from "./views/MapView.vue";
 import NewObservationView from "./views/NewObservationView.vue";
 import MyObservationsView from "./views/MyObservationsView.vue";
@@ -19,7 +20,11 @@ onBeforeUnmount(() => stop?.());
 <template>
   <a class="skip-link" href="#main">{{ t("app.skip") }}</a>
   <header class="site-header">
-    <span class="brand"><span aria-hidden="true" class="brand-icon">a</span>AccessApp</span>
+    <Toolbar>
+      <template #start>
+        <span class="brand"><span aria-hidden="true" class="brand-icon">a</span>AccessApp</span>
+      </template>
+    </Toolbar>
   </header>
   <main id="main">
     <PwaStatus />

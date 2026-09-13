@@ -2,6 +2,9 @@
 import { ref } from "vue";
 import type { LocationData } from "../types/location";
 import { useI18n } from "vue-i18n";
+import Button from "primevue/button";
+import InputNumber from "primevue/inputnumber";
+import Message from "primevue/message";
 
 const emit = defineEmits<{ selected: [location: LocationData] }>();
 const { t } = useI18n();
@@ -46,36 +49,34 @@ function selectLocation() {
   <div class="manual-location">
     <p class="small">{{ t("location.manual") }}</p>
     <div class="manual-location-fields">
-      <label>
+      <label for="latitude">
         {{ t("location.latitude") }}
-        <input
+        <InputNumber
+          id="latitude"
           v-model="latitude"
           name="latitude"
-          type="number"
           min="-90"
           max="90"
-          step="any"
-          inputmode="decimal"
+          :min-fraction-digits="0"
+          :max-fraction-digits="8"
           required
         />
       </label>
-      <label>
+      <label for="longitude">
         {{ t("location.longitude") }}
-        <input
+        <InputNumber
+          id="longitude"
           v-model="longitude"
           name="longitude"
-          type="number"
           min="-180"
           max="180"
-          step="any"
-          inputmode="decimal"
+          :min-fraction-digits="0"
+          :max-fraction-digits="8"
           required
         />
       </label>
     </div>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <button class="secondary" type="button" @click="selectLocation">
-      {{ t("location.use") }}
-    </button>
+    <Message v-if="error" severity="error" role="alert">{{ error }}</Message>
+    <Button type="button" outlined @click="selectLocation" :label="t('location.use')" />
   </div>
 </template>

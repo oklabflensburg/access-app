@@ -9,6 +9,9 @@ import ManualLocationForm from "../components/ManualLocationForm.vue";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
 import { useI18n } from "vue-i18n";
+import Button from "primevue/button";
+import Card from "primevue/card";
+import Message from "primevue/message";
 const location = useLocationStore();
 const observations = useObservationStore();
 const { t } = useI18n();
@@ -48,28 +51,29 @@ onMounted(() => {
 
 <template>
   <h1 tabindex="-1">{{ t("map.title") }}</h1>
-  <p v-if="observations.notice" class="success" role="status">
+  <Message v-if="observations.notice" severity="success" role="status">
     {{ observations.notice }}
-  </p>
+  </Message>
   <div class="map-layout">
-    <aside class="panel location-panel" aria-labelledby="location-heading">
-      <h2 id="location-heading">{{ t("map.location") }}</h2>
-      <button
-        class="secondary"
+    <Card class="location-panel" aria-labelledby="location-heading">
+      <template #title><h2 id="location-heading">{{ t("map.location") }}</h2></template>
+      <template #content>
+      <Button
+        outlined
         :disabled="location.loading"
         @click="location.locate()"
-      >
-        {{
+        :label="
           location.loading
-            ? t("map.locating")
+            ? t('map.locating')
             : location.current
-              ? t("map.updateLocation")
-              : t("map.locate")
-        }}
-      </button>
-      <p v-if="location.error" class="error" role="alert">
+              ? t('map.updateLocation')
+              : t('map.locate')
+        "
+      >
+      </Button>
+      <Message v-if="location.error" severity="error" role="alert">
         {{ location.error }}
-      </p>
+      </Message>
       <ManualLocationForm
         v-if="location.error && !location.current"
         @selected="location.setManualLocation"
@@ -77,7 +81,8 @@ onMounted(() => {
       <div aria-live="polite">
         <LocationDetails v-if="location.current" :location="location.current" />
       </div>
-    </aside>
+      </template>
+    </Card>
     <div>
       <Map :location="location.current" :observations="markers" />
       <div class="map-caption">
@@ -87,19 +92,14 @@ onMounted(() => {
     </div>
   </div>
   <div class="actions">
-    <button class="secondary" :disabled="publicBusy" @click="loadPublic">
-      {{
-        publicBusy ? t("map.loadingPublic") : t("map.loadPublic")
-      }}</button
-    ><span>{{ t("map.publicLoaded", { count: publicObservations.length }) }}</span>
+    <Button outlined :disabled="publicBusy" :loading="publicBusy" @click="loadPublic" :label="publicBusy ? t('map.loadingPublic') : t('map.loadPublic')" />
+    <span>{{ t("map.publicLoaded", { count: publicObservations.length }) }}</span>
   </div>
   <p v-if="publicError" role="status">{{ publicError }}</p>
-  <p v-if="observations.error" class="error" role="alert">
+  <Message v-if="observations.error" severity="error" role="alert">
     {{ observations.error }}
-    <button class="secondary" @click="observations.load()">
-      {{ t("map.retry") }}
-    </button>
-  </p>
+    <Button outlined @click="observations.load()" :label="t('map.retry')" />
+  </Message>
   <p
     v-if="!observations.observations.length && !observations.error"
     class="empty-note"
