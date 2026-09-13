@@ -15,12 +15,12 @@
     "test:pwa": "npm run build && playwright test -c playwright.pwa.config.ts"
   },
   "dependencies": {
-    "@primeuix/themes": "^3.0.0",
+    "@primeuix/themes": "2.0.3",
     "dexie": "^4.4.5",
     "leaflet": "^1.9.4",
     "pinia": "^3.0.4",
     "primeicons": "^8.0.1",
-    "primevue": "^5.0.1",
+    "primevue": "4.5.5",
     "vue": "^3.5.42",
     "vue-i18n": "^11.2.8",
     "vue-router": "^4.6.4"
