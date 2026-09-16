@@ -75,6 +75,8 @@ Supporting changes include dependency/lock files, TypeScript PWA declarations, s
 
 ## API
 
+If you deploy the frontend and backend on different origins, set `VITE_API_BASE_URL` to the backend origin, for example `https://api.example.com/api`, before building the frontend. Keep the default `/api` when the app and API are served from the same origin behind a reverse proxy.
+
 All routes are same-origin under `/api`. JSON mutations require `Content-Type: application/json`. Creation, edits, photo uploads, and deletion require `Authorization: Bearer <observation-edit-token>`.
 
 | Method and route                                                           | Behavior                                                      |

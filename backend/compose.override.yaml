@@ -32,7 +32,7 @@ services:
 ###> doctrine/doctrine-bundle ###
   database:
     ports:
-      - "5432"
+      - "5433:5432"
     volumes:
       - ./docker/postgres/20-create-test-database.sh:/docker-entrypoint-initdb.d/20-create-test-database.sh:ro
 ###< doctrine/doctrine-bundle ###

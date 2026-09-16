@@ -1,11 +1,13 @@
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
 
+const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    const response = await fetch(`/api${path}`, {
+    const response = await fetch(`${apiBase}${path}`, {
       ...options,
       signal: controller.signal,
     });
