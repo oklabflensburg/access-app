@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import { getPublicObservations } from "../services/api";
 import { database } from "../services/storage";
 import type { Observation } from "../types/observation";
+import type { LocationData } from "../types/location";
 import Map from "../components/Map.vue";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
@@ -28,6 +29,15 @@ const ownedObservationIds = computed(
 );
 function editObservation(id: string) {
   void router.push({ name: "edit-observation", params: { id } });
+}
+function addObservationAt(location: LocationData) {
+  void router.push({
+    name: "new-observation",
+    query: {
+      latitude: location.latitude.toString(),
+      longitude: location.longitude.toString(),
+    },
+  });
 }
 async function loadPublic() {
   publicBusy.value = true;
@@ -61,6 +71,7 @@ onMounted(() => {
       :observations="markers"
       :owned-observation-ids="ownedObservationIds"
       @select-observation="editObservation"
+      @select-location="addObservationAt"
     />
     <div class="map-status" aria-live="polite">
       <Message v-if="location.error" severity="error" role="alert">{{ location.error }}</Message>

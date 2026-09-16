@@ -7,6 +7,28 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
+test("opens a new observation at a long-pressed map point", async ({ page }) => {
+  await page.goto("/");
+  const map = page.locator(".map");
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Map is not visible");
+
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(750);
+  await page.mouse.up();
+
+  await expect(page).toHaveURL(
+    /\/observation\/new\?latitude=[^&]+&longitude=[^&]+/,
+  );
+  const url = new URL(page.url());
+  const latitude = Number(url.searchParams.get("latitude"));
+  const longitude = Number(url.searchParams.get("longitude"));
+  await expect(
+    page.getByText(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`),
+  ).toBeVisible();
+});
+
 test("captures a fresh location, saves the questionnaire, and restores its marker after reload", async ({
   page,
   context,

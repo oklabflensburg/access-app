@@ -28,7 +28,7 @@ export const messages = {
       retry: "Erneut laden",
       yourLocation: "Ihr Standort",
       mapLabel: "Barrierefreiheitskarte",
-      mapHelp: "Karte. Mit Pfeiltasten verschieben, mit Plus und Minus zoomen.",
+      mapHelp: "Karte. Mit Pfeiltasten verschieben, mit Plus und Minus zoomen. Einen Punkt gedrückt halten, um dort einen Eintrag anzulegen.",
       mapError: "Kartendaten konnten teilweise nicht geladen werden.",
       accessible: "Rollstuhlgerecht",
       notAccessible: "Nicht rollstuhlgerecht",

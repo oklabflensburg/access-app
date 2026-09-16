@@ -38,6 +38,29 @@ const comment = ref("");
 const saving = ref(false);
 const error = ref("");
 
+function selectedMapLocation(): LocationData | null {
+  const latitude = Number(route.query.latitude);
+  const longitude = Number(route.query.longitude);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  )
+    return null;
+  return {
+    latitude,
+    longitude,
+    accuracy: null,
+    altitude: null,
+    altitudeAccuracy: null,
+    heading: null,
+    speed: null,
+    timestamp: Date.now(),
+  };
+}
 async function captureLocation() {
   location.value = await locationStore.locate();
 }
@@ -65,7 +88,11 @@ async function loadObservation() {
 }
 onMounted(() => {
   if (editing.value) void loadObservation();
-  else void captureLocation();
+  else {
+    const mapLocation = selectedMapLocation();
+    if (mapLocation) useManualLocation(mapLocation);
+    else void captureLocation();
+  }
 });
 async function save() {
   if (saving.value || !location.value || photoBusy.value || sensorBusy.value)
