@@ -7,6 +7,56 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
+test("draws a polygon and queues it for permanent storage", async ({ page }) => {
+  await page.route("**/api/map-features*", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: { features: [] } });
+      return;
+    }
+    const payload = route.request().postDataJSON();
+    expect(route.request().headers().authorization).toMatch(/^Bearer /);
+    await route.fulfill({ json: { id: payload.id } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Fläche zeichnen" }).click();
+  const map = page.locator(".map");
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Map is not visible");
+
+  await page.mouse.click(bounds.x + 180, bounds.y + 160);
+  await page.mouse.click(bounds.x + 300, bounds.y + 160);
+  await page.mouse.click(bounds.x + 240, bounds.y + 260);
+  const requestPromise = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/api/map-features") &&
+      request.method() === "POST",
+  );
+  await page.getByRole("button", { name: "Schließen und speichern" }).click();
+  const saved = (await requestPromise).postDataJSON();
+
+  await expect(page.getByText("Fläche wurde dauerhaft gespeichert.")).toBeVisible();
+  expect(saved?.geometry.type).toBe("Polygon");
+  expect(saved?.geometry.coordinates[0]).toHaveLength(4);
+  expect(saved?.geometry.coordinates[0][0]).toEqual(
+    saved?.geometry.coordinates[0][3],
+  );
+  await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(1);
+
+  const local = await page.evaluate(async () => {
+    const request = indexedDB.open("accessapp");
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const read = db.transaction("mapFeatures").objectStore("mapFeatures").getAll();
+    return await new Promise<any[]>((resolve) => {
+      read.onsuccess = () => resolve(read.result);
+    });
+  });
+  expect(local).toHaveLength(1);
+  expect(local[0].syncStatus).toBe("synced");
+});
+
 test("opens a new observation at a long-pressed map point", async ({ page }) => {
   await page.goto("/");
   const map = page.locator(".map");

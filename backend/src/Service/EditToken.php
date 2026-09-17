@@ -13,7 +13,7 @@ final class EditToken
     {
         $authorization = $request->headers->get('Authorization', '');
         if (!preg_match('/^Bearer ([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/D', $authorization, $matches)) {
-            throw new UnauthorizedHttpException('Bearer', 'A valid observation edit token is required.');
+            throw new UnauthorizedHttpException('Bearer', 'A valid edit token is required.');
         }
 
         return hash('sha256', $matches[1]);

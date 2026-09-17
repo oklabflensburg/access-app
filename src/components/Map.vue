@@ -3,24 +3,32 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import L from "leaflet";
 import type { LocationData } from "../types/location";
 import type { Observation } from "../types/observation";
+import type { MapFeature, PolygonGeometry } from "../types/map-feature";
 import { useI18n } from "vue-i18n";
 
 const props = defineProps<{
   location: LocationData | null;
   observations: Observation[];
   ownedObservationIds: ReadonlySet<string>;
+  features: MapFeature[];
 }>();
 const emit = defineEmits<{
   selectObservation: [id: string];
   selectLocation: [location: LocationData];
+  createFeature: [geometry: PolygonGeometry];
 }>();
 const { t } = useI18n();
 const container = ref<HTMLDivElement>();
 const tileError = ref(false);
+const drawing = ref(false);
+const vertices = ref<L.LatLng[]>([]);
+const drawingError = ref("");
 const longPressDelay = 700;
 let map: L.Map | undefined;
 let observationLayer: L.LayerGroup;
 let locationLayer: L.LayerGroup;
+let featureLayer: L.LayerGroup;
+let drawingLayer: L.LayerGroup;
 let resizeObserver: ResizeObserver | undefined;
 let longPressTimer: ReturnType<typeof setTimeout> | undefined;
 let longPressPoint: L.LatLng | undefined;
@@ -37,6 +45,7 @@ function cancelLongPress() {
 }
 
 function startLongPress(event: L.LeafletEvent) {
+  if (drawing.value) return;
   if (!hasMapPoint(event)) return;
   cancelLongPress();
   longPressPoint = event.latlng;
@@ -54,6 +63,96 @@ function startLongPress(event: L.LeafletEvent) {
     });
     cancelLongPress();
   }, longPressDelay);
+}
+
+function renderDrawing() {
+  drawingLayer.clearLayers();
+  if (!vertices.value.length) return;
+  L.polyline(vertices.value, {
+    color: "#a34612",
+    weight: 4,
+    dashArray: "7 6",
+  }).addTo(drawingLayer);
+  vertices.value.forEach((point, index) =>
+    L.circleMarker(point, {
+      radius: index === 0 ? 8 : 6,
+      color: "#fff",
+      weight: 2,
+      fillColor: "#a34612",
+      fillOpacity: 1,
+    }).addTo(drawingLayer),
+  );
+}
+
+function addVertex(event: L.LeafletEvent) {
+  if (!drawing.value || !hasMapPoint(event) || vertices.value.length >= 500)
+    return;
+  vertices.value = [...vertices.value, event.latlng];
+  drawingError.value = "";
+  renderDrawing();
+}
+
+function startDrawing() {
+  cancelLongPress();
+  drawing.value = true;
+  vertices.value = [];
+  drawingError.value = "";
+  renderDrawing();
+}
+
+function undoVertex() {
+  vertices.value = vertices.value.slice(0, -1);
+  drawingError.value = "";
+  renderDrawing();
+}
+
+function cancelDrawing() {
+  drawing.value = false;
+  vertices.value = [];
+  drawingError.value = "";
+  drawingLayer.clearLayers();
+}
+
+function finishDrawing() {
+  if (vertices.value.length < 3) return;
+  const ring = vertices.value.map(
+    (point) => [point.lng, point.lat] as [number, number],
+  );
+  ring.push([...ring[0]]);
+  if (new Set(ring.slice(0, -1).map(([x, y]) => `${x},${y}`)).size < 3 || polygonIntersectsItself(ring)) {
+    drawingError.value = t("map.invalidPolygon");
+    return;
+  }
+  emit("createFeature", { type: "Polygon", coordinates: [ring] });
+  cancelDrawing();
+}
+
+function polygonIntersectsItself(ring: [number, number][]): boolean {
+  const crosses = (
+    a: [number, number],
+    b: [number, number],
+    c: [number, number],
+    d: [number, number],
+  ) => {
+    const direction = (p: [number, number], q: [number, number], r: [number, number]) =>
+      (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    const abC = direction(a, b, c);
+    const abD = direction(a, b, d);
+    const cdA = direction(c, d, a);
+    const cdB = direction(c, d, b);
+    return ((abC > 0 && abD < 0) || (abC < 0 && abD > 0))
+      && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0));
+  };
+  const edgeCount = ring.length - 1;
+  for (let first = 0; first < edgeCount; first++) {
+    for (let second = first + 1; second < edgeCount; second++) {
+      if (second === first + 1 || (first === 0 && second === edgeCount - 1))
+        continue;
+      if (crosses(ring[first], ring[first + 1], ring[second], ring[second + 1]))
+        return true;
+    }
+  }
+  return false;
 }
 
 function drawLocation() {
@@ -136,6 +235,40 @@ function drawObservations() {
   }
 }
 
+function drawFeatures() {
+  featureLayer.clearLayers();
+  props.features.forEach((feature) => {
+    const ring = feature.geometry.coordinates[0].map(
+      ([longitude, latitude]) => [latitude, longitude] as L.LatLngTuple,
+    );
+    const polygon = L.polygon(ring, {
+      color: feature.syncStatus && feature.syncStatus !== "synced" ? "#a34612" : "#18594b",
+      weight: 3,
+      fillColor: "#56a784",
+      fillOpacity: 0.22,
+    }).addTo(featureLayer);
+    polygon.bindTooltip(
+      feature.syncStatus === "failed"
+        ? t("map.featureFailed")
+        : feature.syncStatus && feature.syncStatus !== "synced"
+          ? t("map.featurePending")
+          : t("map.area"),
+    );
+  });
+  if (!props.location && !props.observations.length && props.features.length) {
+    map?.fitBounds(
+      L.latLngBounds(
+        props.features.flatMap((feature) =>
+          feature.geometry.coordinates[0].map(
+            ([longitude, latitude]) => [latitude, longitude] as L.LatLngTuple,
+          ),
+        ),
+      ),
+      { maxZoom: 17, padding: [35, 35] },
+    );
+  }
+}
+
 onMounted(() => {
   map = L.map(container.value!, { scrollWheelZoom: false }).setView([20, 0], 2);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -148,17 +281,22 @@ onMounted(() => {
     })
     .addTo(map);
   locationLayer = L.layerGroup().addTo(map);
+  featureLayer = L.layerGroup().addTo(map);
   observationLayer = L.layerGroup().addTo(map);
+  drawingLayer = L.layerGroup().addTo(map);
   map.on("mousedown", startLongPress);
   map.on("touchstart", startLongPress);
   map.on("mouseup touchend touchcancel dragstart move", cancelLongPress);
+  map.on("click", addVertex);
   drawLocation();
   drawObservations();
+  drawFeatures();
   resizeObserver = new ResizeObserver(() => map?.invalidateSize());
   resizeObserver.observe(container.value!);
 });
 watch(() => props.location, drawLocation);
 watch(() => props.observations, drawObservations, { deep: true });
+watch(() => props.features, drawFeatures, { deep: true });
 onBeforeUnmount(() => {
   cancelLongPress();
   resizeObserver?.disconnect();
@@ -173,6 +311,26 @@ onBeforeUnmount(() => {
       class="map"
       :aria-label="t('map.mapHelp')"
     />
+    <div class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
+      <button v-if="!drawing" type="button" class="primary" @click="startDrawing">
+        <i class="pi pi-pencil" aria-hidden="true" /> {{ t("map.drawArea") }}
+      </button>
+      <template v-else>
+        <p class="drawing-instruction" role="status">
+          {{ t("map.drawHelp", { count: vertices.length }) }}
+        </p>
+        <p v-if="drawingError" class="drawing-error" role="alert">{{ drawingError }}</p>
+        <button type="button" class="secondary" :disabled="!vertices.length" @click="undoVertex">
+          {{ t("map.undoPoint") }}
+        </button>
+        <button type="button" class="secondary" @click="cancelDrawing">
+          {{ t("map.cancelDrawing") }}
+        </button>
+        <button type="button" class="primary" :disabled="vertices.length < 3" @click="finishDrawing">
+          {{ t("map.closeAndSave") }}
+        </button>
+      </template>
+    </div>
     <p v-if="tileError" class="map-warning" role="status">
       {{ t("map.mapError") }}
     </p>

@@ -20,12 +20,13 @@ Stop the backend without removing saved data using `(cd backend && docker compos
 ## Using the app
 
 1. On the map, choose **Use my location**, or **Add accessibility information** to capture a fresh position.
-2. Answer the questionnaire. Unknown answers remain explicit; `3` steps means **3 or more**.
-3. Optionally add up to six photos, a 10-second relative noise measurement, a 10-second raw motion recording, or a 5-second ambient-light measurement.
-4. **Save observation on this device** makes it ready for sharing. **Save draft** keeps it out of the sync queue.
-5. In **My observations**, edit or delete local records. Deleting removes local photos and measurements immediately and queues public deletion.
-6. **Share & sync now** publishes all ready records and pending deletions. It publishes exact coordinates, comments, photos, and measurements. Automatic sharing is off by default; enabling it retries queued changes while the app is open.
-7. Use **Load public observations** on the map to fetch up to 200 public records. Local records take precedence, and locally deleted records remain hidden.
+2. To contribute an area, choose **Draw area**, place at least three vertices, and select **Close and save**. The polygon is stored locally first and synchronized to the public map with the normal sync queue.
+3. Answer the questionnaire. Unknown answers remain explicit; `3` steps means **3 or more**.
+4. Optionally add up to six photos, a 10-second relative noise measurement, a 10-second raw motion recording, or a 5-second ambient-light measurement.
+5. **Save observation on this device** makes it ready for sharing. **Save draft** keeps it out of the sync queue.
+6. In **My observations**, edit or delete local records. Deleting removes local photos and measurements immediately and queues public deletion.
+7. **Share & sync now** publishes all ready observations, polygons, and pending deletions. Automatic sharing is off by default; enabling it retries queued changes while the app is open.
+8. The map fetches up to 200 public observations and 200 public polygon features. Locally stored records take precedence.
 
 ## Offline PWA
 
@@ -87,7 +88,7 @@ Supporting changes include dependency/lock files, TypeScript PWA declarations, s
 
 If you deploy the frontend and backend on different origins, set `VITE_API_BASE_URL` to the backend origin, for example `https://api.example.com/api`, before building the frontend. Keep the default `/api` when the app and API are served from the same origin behind a reverse proxy.
 
-All routes are same-origin under `/api`. JSON mutations require `Content-Type: application/json`. Creation, edits, photo uploads, and deletion require `Authorization: Bearer <observation-edit-token>`.
+All routes are same-origin under `/api`. JSON mutations require `Content-Type: application/json`. Creation, edits, photo uploads, and deletion require `Authorization: Bearer <edit-token>`.
 
 | Method and route                                                           | Behavior                                                      |
 | -------------------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -98,10 +99,14 @@ All routes are same-origin under `/api`. JSON mutations require `Content-Type: a
 | `POST /api/observations/{id}/photos`                                       | Multipart fields `id`, `revision`, `photo`                    |
 | `GET /api/observations/{id}/photos/{photoId}`                              | JPEG for a current, non-deleted observation                   |
 | `DELETE /api/observations/{id}`                                            | JSON `{ "revision": <newer integer> }`; repeatable deletion   |
+| `POST /api/map-features`                                                   | Create an authenticated, idempotent polygon feature            |
+| `GET /api/map-features?limit=100`                                          | List active public polygons; limit 1–200                       |
 
 Collection responses are `{ observations, nextCursor }`, ordered by descending UUID for stable cursor pagination, and omit large motion/light arrays. Bounding boxes support crossing the antimeridian. Detail responses include measurement arrays. Local sync metadata and edit tokens are not public.
 
 Payloads include `id` (UUID v4), `revision`, `createdAt`, `location`, `accessibility`, `comment`, `photoIds`, and optional `noise`, `motion`, and `light`. See the shared TypeScript types and API integration tests for examples. Invalid input, conflicting revisions, unauthorized edits, oversized uploads, and missing records return JSON errors with appropriate HTTP status codes.
+
+Map-feature creation accepts a UUID, creation time, the `area` type, an optional name, and GeoJSON `Polygon` geometry. Rings must be explicitly closed, contain 3–500 vertices, use longitude/latitude coordinates, and form a valid non-self-intersecting area. The edit token is sent only in the Authorization header and makes offline retries idempotent.
 
 ## Verification
 

@@ -1,11 +1,13 @@
 import Dexie, { type Table } from "dexie";
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
+import type { MapFeature } from "../types/map-feature";
 
 class ObservationDatabase extends Dexie {
   observations!: Table<Observation, string>;
   photos!: Table<Photo, string>;
   sensors!: Table<SensorData, string>;
+  mapFeatures!: Table<MapFeature, string>;
   constructor() {
     super("accessapp");
     this.version(1).stores({ observations: "id, createdAt, syncStatus" });
@@ -25,10 +27,55 @@ class ObservationDatabase extends Dexie {
             row.photoIds = [];
           }),
       );
+    this.version(3).stores({
+      observations: "id, createdAt, syncStatus",
+      photos: "id, observationId",
+      sensors: "observationId",
+      mapFeatures: "id, createdAt, syncStatus",
+    });
   }
 }
 
 export const database = new ObservationDatabase();
+
+export async function saveMapFeature(
+  geometry: MapFeature["geometry"],
+): Promise<MapFeature> {
+  const ring = geometry.coordinates[0];
+  if (
+    ring.length < 4 ||
+    ring.length > 501 ||
+    ring.some(
+      ([longitude, latitude]) =>
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude) ||
+        Math.abs(latitude) > 90 ||
+        Math.abs(longitude) > 180,
+    ) ||
+    ring[0][0] !== ring.at(-1)?.[0] ||
+    ring[0][1] !== ring.at(-1)?.[1]
+  ) {
+    throw new Error("Die gezeichnete Fläche ist ungültig.");
+  }
+  const feature: MapFeature = {
+    id: crypto.randomUUID(),
+    type: "area",
+    name: "",
+    geometry,
+    createdAt: new Date().toISOString(),
+    syncStatus: "ready",
+    editToken: crypto.randomUUID(),
+    attempts: 0,
+    nextRetryAt: 0,
+    lastError: "",
+  };
+  await database.mapFeatures.add(feature);
+  return feature;
+}
+
+export function getLocalMapFeatures(): Promise<MapFeature[]> {
+  return database.mapFeatures.orderBy("createdAt").reverse().toArray();
+}
 
 export async function saveObservation(
   observation: Observation,

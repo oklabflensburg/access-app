@@ -80,6 +80,8 @@ CREATE TABLE map_features (
     parent_feature_id uuid REFERENCES map_features(id) ON DELETE SET NULL,
     name text,
     geometry geometry(Geometry, 4326) NOT NULL,
+    edit_token_hash char(64)
+        CHECK (edit_token_hash IS NULL OR edit_token_hash ~ '^[0-9a-f]{64}$'),
     status text NOT NULL DEFAULT 'active'
         CHECK (status IN ('active', 'merged', 'removed')),
     merged_into_id uuid REFERENCES map_features(id) ON DELETE SET NULL,

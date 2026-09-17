@@ -8,6 +8,61 @@ use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 
 final class ObservationControllerTest extends WebTestCase
 {
+    public function testPolygonMapFeatureCanBeCreatedIdempotentlyAndListed(): void
+    {
+        $client = static::createClient();
+        $id = $this->uuid();
+        $token = $this->uuid();
+        $headers = ['HTTP_AUTHORIZATION' => 'Bearer '.$token];
+        $payload = [
+            'id' => $id,
+            'type' => 'area',
+            'name' => '',
+            'createdAt' => '2026-09-17T10:00:00.000Z',
+            'geometry' => [
+                'type' => 'Polygon',
+                'coordinates' => [[[13.4, 52.5], [13.41, 52.5], [13.405, 52.51], [13.4, 52.5]]],
+            ],
+        ];
+
+        $client->jsonRequest('POST', '/api/map-features', $payload, $headers);
+        self::assertResponseIsSuccessful();
+        self::assertSame(['id' => $id], $this->responseData($client));
+
+        $client->jsonRequest('POST', '/api/map-features', $payload, $headers);
+        self::assertResponseIsSuccessful();
+
+        $client->request('GET', '/api/map-features?limit=200');
+        self::assertResponseIsSuccessful();
+        $features = $this->responseData($client)['features'];
+        self::assertContains($id, array_column($features, 'id'));
+
+        $client->jsonRequest('POST', '/api/map-features', $payload, [
+            'HTTP_AUTHORIZATION' => 'Bearer '.$this->uuid(),
+        ]);
+        self::assertResponseStatusCodeSame(403);
+
+        static::getContainer()->get('doctrine.dbal.default_connection')
+            ->executeStatement('DELETE FROM map_features WHERE id = :id', ['id' => $id]);
+    }
+
+    public function testSelfIntersectingPolygonIsRejected(): void
+    {
+        $client = static::createClient();
+        $client->jsonRequest('POST', '/api/map-features', [
+            'id' => $this->uuid(),
+            'type' => 'area',
+            'name' => '',
+            'createdAt' => '2026-09-17T10:00:00.000Z',
+            'geometry' => [
+                'type' => 'Polygon',
+                'coordinates' => [[[13.4, 52.5], [13.41, 52.51], [13.4, 52.51], [13.41, 52.5], [13.4, 52.5]]],
+            ],
+        ], ['HTTP_AUTHORIZATION' => 'Bearer '.$this->uuid()]);
+
+        self::assertResponseStatusCodeSame(400);
+    }
+
     public function testObservationLifecycleAndAuthorization(): void
     {
         $client = static::createClient();

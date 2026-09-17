@@ -11,10 +11,16 @@ const sync = useSyncStore();
 const { t } = useI18n();
 const pending = ref(0);
 const subscription = liveQuery(() =>
-  database.observations
-    .where("syncStatus")
-    .anyOf("ready", "failed", "syncing")
-    .count(),
+  Promise.all([
+    database.observations
+      .where("syncStatus")
+      .anyOf("ready", "failed", "syncing")
+      .count(),
+    database.mapFeatures
+      .where("syncStatus")
+      .anyOf("ready", "failed", "syncing")
+      .count(),
+  ]).then(([observations, features]) => observations + features),
 ).subscribe({
   next: (count) => {
     pending.value = count;

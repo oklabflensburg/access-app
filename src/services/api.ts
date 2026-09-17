@@ -1,5 +1,6 @@
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
+import type { MapFeature } from "../types/map-feature";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
@@ -73,4 +74,25 @@ export function getPublicObservations() {
   return request<{ observations: Observation[]; nextCursor: string | null }>(
     "/observations?limit=200",
   );
+}
+
+export function uploadMapFeature(feature: MapFeature) {
+  return request<{ id: string }>("/map-features", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${feature.editToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: feature.id,
+      type: feature.type,
+      name: feature.name,
+      geometry: feature.geometry,
+      createdAt: feature.createdAt,
+    }),
+  });
+}
+
+export function getPublicMapFeatures() {
+  return request<{ features: MapFeature[] }>("/map-features?limit=200");
 }

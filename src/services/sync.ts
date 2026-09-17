@@ -1,5 +1,10 @@
 import { database } from "./storage";
-import { removeRemoteObservation, uploadObservation, uploadPhoto } from "./api";
+import {
+  removeRemoteObservation,
+  uploadMapFeature,
+  uploadObservation,
+  uploadPhoto,
+} from "./api";
 import type { Observation } from "../types/observation";
 
 let running: Promise<{ synced: number; failed: number }> | undefined;
@@ -79,6 +84,41 @@ async function runQueue(force: boolean) {
           cause instanceof Error
             ? cause.message
             : "Upload fehlgeschlagen.",
+      });
+      result.failed++;
+    }
+  }
+  const featureQueue = await database.mapFeatures
+    .where("syncStatus")
+    .anyOf("ready", "failed", "syncing")
+    .toArray();
+  for (const feature of featureQueue) {
+    if (!navigator.onLine) break;
+    if (!force && (feature.nextRetryAt ?? 0) > Date.now()) continue;
+    try {
+      await database.mapFeatures.update(feature.id, {
+        syncStatus: "syncing",
+        lastError: "",
+      });
+      const ack = await uploadMapFeature(feature);
+      if (ack.id !== feature.id)
+        throw new Error("Die Fläche konnte nicht bestätigt werden.");
+      await database.mapFeatures.update(feature.id, {
+        syncStatus: "synced",
+        attempts: 0,
+        nextRetryAt: 0,
+        lastError: "",
+      });
+      result.synced++;
+    } catch (cause) {
+      const attempts = (feature.attempts ?? 0) + 1;
+      await database.mapFeatures.update(feature.id, {
+        syncStatus: "failed",
+        attempts,
+        nextRetryAt:
+          Date.now() + Math.min(300000, 5000 * 2 ** Math.min(attempts, 6)),
+        lastError:
+          cause instanceof Error ? cause.message : "Upload fehlgeschlagen.",
       });
       result.failed++;
     }
