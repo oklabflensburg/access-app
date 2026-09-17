@@ -18,6 +18,7 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
     await route.fulfill({ json: { id: payload.id } });
   });
   await page.goto("/");
+  await page.getByRole("button", { name: "Menü" }).click();
   await page.getByRole("button", { name: "Fläche zeichnen" }).click();
   const map = page.locator(".map");
   const bounds = await map.boundingBox();

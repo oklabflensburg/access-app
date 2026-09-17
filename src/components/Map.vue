@@ -5,6 +5,7 @@ import type { LocationData } from "../types/location";
 import type { Observation } from "../types/observation";
 import type { MapFeature, PolygonGeometry } from "../types/map-feature";
 import { useI18n } from "vue-i18n";
+import { useMapStore } from "../stores/map";
 
 const props = defineProps<{
   location: LocationData | null;
@@ -18,6 +19,7 @@ const emit = defineEmits<{
   createFeature: [geometry: PolygonGeometry];
 }>();
 const { t } = useI18n();
+const mapStore = useMapStore();
 const container = ref<HTMLDivElement>();
 const tileError = ref(false);
 const drawing = ref(false);
@@ -270,7 +272,11 @@ function drawFeatures() {
 }
 
 onMounted(() => {
-  map = L.map(container.value!, { scrollWheelZoom: false }).setView([20, 0], 2);
+  map = L.map(container.value!, {
+    scrollWheelZoom: true,
+    touchZoom: true,
+    doubleClickZoom: true,
+  }).setView([20, 0], 2);
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution:
@@ -297,6 +303,7 @@ onMounted(() => {
 watch(() => props.location, drawLocation);
 watch(() => props.observations, drawObservations, { deep: true });
 watch(() => props.features, drawFeatures, { deep: true });
+watch(() => mapStore.drawRequest, startDrawing);
 onBeforeUnmount(() => {
   cancelLongPress();
   resizeObserver?.disconnect();
@@ -311,25 +318,20 @@ onBeforeUnmount(() => {
       class="map"
       :aria-label="t('map.mapHelp')"
     />
-    <div class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
-      <button v-if="!drawing" type="button" class="primary" @click="startDrawing">
-        <i class="pi pi-pencil" aria-hidden="true" /> {{ t("map.drawArea") }}
+    <div v-if="drawing" class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
+      <p class="drawing-instruction" role="status">
+        {{ t("map.drawHelp", { count: vertices.length }) }}
+      </p>
+      <p v-if="drawingError" class="drawing-error" role="alert">{{ drawingError }}</p>
+      <button type="button" class="secondary" :disabled="!vertices.length" @click="undoVertex">
+        {{ t("map.undoPoint") }}
       </button>
-      <template v-else>
-        <p class="drawing-instruction" role="status">
-          {{ t("map.drawHelp", { count: vertices.length }) }}
-        </p>
-        <p v-if="drawingError" class="drawing-error" role="alert">{{ drawingError }}</p>
-        <button type="button" class="secondary" :disabled="!vertices.length" @click="undoVertex">
-          {{ t("map.undoPoint") }}
-        </button>
-        <button type="button" class="secondary" @click="cancelDrawing">
-          {{ t("map.cancelDrawing") }}
-        </button>
-        <button type="button" class="primary" :disabled="vertices.length < 3" @click="finishDrawing">
-          {{ t("map.closeAndSave") }}
-        </button>
-      </template>
+      <button type="button" class="secondary" @click="cancelDrawing">
+        {{ t("map.cancelDrawing") }}
+      </button>
+      <button type="button" class="primary" :disabled="vertices.length < 3" @click="finishDrawing">
+        {{ t("map.closeAndSave") }}
+      </button>
     </div>
     <p v-if="tileError" class="map-warning" role="status">
       {{ t("map.mapError") }}

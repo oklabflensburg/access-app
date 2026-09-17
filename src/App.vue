@@ -3,15 +3,21 @@ import { onMounted, onBeforeUnmount, ref } from "vue";
 import { RouterLink, RouterView, useRoute } from "vue-router";
 import { useSyncStore } from "./stores/sync";
 import { useLocationStore } from "./stores/location";
+import { useMapStore } from "./stores/map";
 import { useI18n } from "vue-i18n";
 import SyncPanel from "./components/SyncPanel.vue";
 import PwaStatus from "./components/PwaStatus.vue";
 
 const sync = useSyncStore();
 const location = useLocationStore();
+const map = useMapStore();
 const route = useRoute();
 const { t } = useI18n();
 const menuOpen = ref(false);
+function startDrawing() {
+  map.requestDrawing();
+  menuOpen.value = false;
+}
 let stop: (() => void) | undefined;
 onMounted(() => {
   stop = sync.start();
@@ -42,6 +48,14 @@ onBeforeUnmount(() => stop?.());
       <RouterLink to="/observations" @click="menuOpen = false">
         <i class="pi pi-list" aria-hidden="true" /> {{ t("app.observations") }}
       </RouterLink>
+      <button
+        v-if="route.name === 'map'"
+        type="button"
+        class="menu-action"
+        @click="startDrawing"
+      >
+        <i class="pi pi-pencil" aria-hidden="true" /> {{ t("map.drawArea") }}
+      </button>
       <SyncPanel class="menu-sync" />
     </nav>
     <button

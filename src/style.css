@@ -289,6 +289,9 @@ main {
   height: 44px !important;
   line-height: 44px !important;
 }
+.map-page .leaflet-top {
+  top: 64px;
+}
 .leaflet-popup-content {
   font-family: system-ui, sans-serif;
   font-size: 15px;
@@ -549,7 +552,8 @@ input::file-selector-button {
   border-radius: 12px;
   box-shadow: 0 8px 24px #203c3433;
 }
-.mobile-menu a {
+.mobile-menu a,
+.mobile-menu .menu-action {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -559,6 +563,12 @@ input::file-selector-button {
   color: #203c34;
   font-weight: 700;
   text-decoration: none;
+}
+.mobile-menu .menu-action {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
 }
 .mobile-menu a.router-link-exact-active {
   background: #e8f2e4;
