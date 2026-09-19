@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 type Reading = { illuminance: number; timestamp: number };
 interface LightSensor extends EventTarget {
   illuminance: number | null;
@@ -12,14 +14,14 @@ export function measureLight(signal: AbortSignal): Promise<Reading[]> {
   ).AmbientLightSensor;
   if (!API)
     return Promise.reject(
-      new Error("Umgebungslichtmessung ist nicht verfügbar."),
+      new Error(t("errors.lightUnavailable")),
     );
   return new Promise((resolve, reject) => {
     let sensor: LightSensor;
     try {
       sensor = new API({ frequency: 2 });
     } catch {
-      reject(new Error("Umgebungslichtmessung ist nicht verfügbar."));
+      reject(new Error(t("errors.lightUnavailable")));
       return;
     }
     const readings: Reading[] = [];
@@ -39,17 +41,17 @@ export function measureLight(signal: AbortSignal): Promise<Reading[]> {
     };
     const fail = () => {
       cleanup();
-      reject(new Error("Lichtsensor nicht verfügbar oder Berechtigung verweigert."));
+      reject(new Error(t("errors.lightPermission")));
     };
     const abort = () => {
       cleanup();
-      reject(new Error("Messung abgebrochen."));
+      reject(new Error(t("errors.measurementCancelled")));
     };
     const timeout = setTimeout(() => {
       cleanup();
       readings.length
         ? resolve(readings)
-        : reject(new Error("Keine Lichtwerte empfangen."));
+        : reject(new Error(t("errors.lightNoValues")));
     }, 5000);
     sensor.addEventListener("reading", read);
     sensor.addEventListener("error", fail);

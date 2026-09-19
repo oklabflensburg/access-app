@@ -2,6 +2,7 @@ import Dexie, { type Table } from "dexie";
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
 import type { MapFeature } from "../types/map-feature";
+import { t } from "../i18n";
 
 class ObservationDatabase extends Dexie {
   observations!: Table<Observation, string>;
@@ -10,24 +11,7 @@ class ObservationDatabase extends Dexie {
   mapFeatures!: Table<MapFeature, string>;
   constructor() {
     super("accessapp");
-    this.version(1).stores({ observations: "id, createdAt, syncStatus" });
-    this.version(2)
-      .stores({
-        observations: "id, createdAt, syncStatus",
-        photos: "id, observationId",
-        sensors: "observationId",
-      })
-      .upgrade((tx) =>
-        tx
-          .table("observations")
-          .toCollection()
-          .modify((row) => {
-            row.revision = 1;
-            row.editToken = crypto.randomUUID();
-            row.photoIds = [];
-          }),
-      );
-    this.version(3).stores({
+    this.version(1).stores({
       observations: "id, createdAt, syncStatus",
       photos: "id, observationId",
       sensors: "observationId",
@@ -55,7 +39,7 @@ export async function saveMapFeature(
     ring[0][0] !== ring.at(-1)?.[0] ||
     ring[0][1] !== ring.at(-1)?.[1]
   ) {
-    throw new Error("Die gezeichnete Fläche ist ungültig.");
+    throw new Error(t("errors.invalidArea"));
   }
   const feature: MapFeature = {
     id: crypto.randomUUID(),
@@ -89,7 +73,7 @@ export async function saveObservation(
     Math.abs(latitude) > 90 ||
     Math.abs(longitude) > 180
   ) {
-    throw new Error("Ein gültiger Standort ist erforderlich.");
+    throw new Error(t("errors.validLocationRequired"));
   }
   await database.transaction(
     "rw",
@@ -99,9 +83,7 @@ export async function saveObservation(
     async () => {
       const old = await database.observations.get(observation.id);
       if (old && (old.revision !== observation.revision || old.deleted))
-        throw new Error(
-          "Dieser Eintrag wurde in einem anderen Tab geändert.",
-        );
+        throw new Error(t("errors.observationConflict"));
       const record: Observation = JSON.parse(
         JSON.stringify({
           ...observation,
