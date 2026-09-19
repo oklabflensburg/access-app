@@ -43,7 +43,9 @@ At **https://app.hendrikgoebel.de**, install with the browser's **Install app** 
 
 ## Deployment
 
-Pushing to `main` runs the **Build and deploy** GitHub Actions workflow. It builds the frontend and synchronizes `dist/` to `/opt/access/` over SSH. Configure the `production` environment with these secrets:
+Pushing to `main` runs the **Build and deploy** GitHub Actions workflow. It builds the frontend, synchronizes `dist/` to `/opt/access/`, and synchronizes the Symfony app to `/opt/access/backend/` over SSH. It then builds and restarts the backend with its production Docker Compose configuration. Pending Doctrine migrations run when the new backend container starts.
+
+Configure the GitHub `production` environment with these secrets:
 
 - `DEPLOY_HOST`: deployment server hostname
 - `DEPLOY_USER`: SSH user with write access to `/opt/access`
@@ -51,6 +53,20 @@ Pushing to `main` runs the **Build and deploy** GitHub Actions workflow. It buil
 - `DEPLOY_PORT`: optional SSH port; defaults to `22`
 
 The workflow currently disables SSH host-key verification, so no `DEPLOY_KNOWN_HOSTS` secret is required.
+
+The deployment server needs Docker with the Compose plugin, and the deployment user needs permission to run it. Before the first deployment, create `/opt/access/backend/.env.local`; deployments preserve this file. At minimum, configure production values for `APP_SECRET`, `CADDY_MERCURE_JWT_SECRET`, and `POSTGRES_PASSWORD`. Configure `SERVER_NAME` and the published `HTTP_PORT`, `HTTPS_PORT`, and `HTTP3_PORT` values to match the server's reverse-proxy and port setup. For example:
+
+```dotenv
+APP_SECRET=replace-with-a-random-secret
+CADDY_MERCURE_JWT_SECRET=replace-with-another-random-secret
+POSTGRES_PASSWORD=replace-with-a-database-password
+SERVER_NAME=:80
+HTTP_PORT=8080
+HTTPS_PORT=8443
+HTTP3_PORT=8443
+```
+
+The backend's database, Caddy state, and uploaded photos remain in named Docker volumes across deployments. The frontend synchronizer explicitly preserves the `backend/` directory, while the backend synchronizer preserves local environment files and runtime data.
 
 Service-worker updates prompt for a reload so an update does not silently discard an open form. The development server intentionally does not register a service worker.
 

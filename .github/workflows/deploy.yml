@@ -17,6 +17,7 @@ jobs:
     permissions:
       contents: read
     env:
+      BACKEND_DEPLOY_PATH: /opt/access/backend
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
       DEPLOY_PATH: /opt/access
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
@@ -39,12 +40,34 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Deploy site
+      - name: Deploy frontend and backend
         run: |
           ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "mkdir -p '$DEPLOY_PATH'"
+            "mkdir -p '$DEPLOY_PATH' '$BACKEND_DEPLOY_PATH'"
           rsync -az --delete --delay-updates \
+            --exclude='/backend/' \
             -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             dist/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+          rsync -az --delete --delay-updates \
+            --exclude='.env.local' \
+            --exclude='.env.*.local' \
+            --exclude='var/' \
+            --exclude='vendor/' \
+            -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            backend/ "$DEPLOY_USER@$DEPLOY_HOST:$BACKEND_DEPLOY_PATH/"
+
+      - name: Restart backend
+        run: |
+          ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd '$BACKEND_DEPLOY_PATH' && \
+             if [ ! -f .env.local ]; then \
+               echo 'Missing backend deployment configuration: $BACKEND_DEPLOY_PATH/.env.local' >&2; \
+               exit 1; \
+             fi && \
+             docker compose --env-file .env.local \
+               -f compose.yaml -f compose.prod.yaml \
+               up --build --detach --remove-orphans --wait"
