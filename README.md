@@ -51,10 +51,11 @@ Configure the GitHub `production` environment with these secrets:
 - `DEPLOY_USER`: SSH user with write access to `/opt/access`
 - `DEPLOY_SSH_KEY`: private SSH key for that user
 - `DEPLOY_PORT`: optional SSH port; defaults to `22`
+- `BACKEND_ENV`: complete contents of the backend production environment file
 
 The workflow currently disables SSH host-key verification, so no `DEPLOY_KNOWN_HOSTS` secret is required.
 
-The deployment server needs Docker with the Compose plugin, and the deployment user needs permission to run it. Before the first deployment, create `/opt/access/backend/.env.local`; deployments preserve this file. At minimum, configure production values for `APP_SECRET`, `CADDY_MERCURE_JWT_SECRET`, and `POSTGRES_PASSWORD`. Configure `SERVER_NAME` and the published `HTTP_PORT`, `HTTPS_PORT`, and `HTTP3_PORT` values to match the server's reverse-proxy and port setup. For example:
+The deployment server needs Docker with the Compose plugin, and the deployment user needs permission to run it. Store the complete production environment file as the multiline `BACKEND_ENV` secret. The workflow writes it to `/opt/access/backend/.env.local` with owner-only permissions on every deployment. At minimum, configure production values for `APP_SECRET`, `CADDY_MERCURE_JWT_SECRET`, and `POSTGRES_PASSWORD`. Configure `SERVER_NAME` and the published `HTTP_PORT`, `HTTPS_PORT`, and `HTTP3_PORT` values to match the server's reverse-proxy and port setup. For example:
 
 ```dotenv
 APP_SECRET=replace-with-a-random-secret
@@ -66,7 +67,7 @@ HTTPS_PORT=8443
 HTTP3_PORT=8443
 ```
 
-The backend's database, Caddy state, and uploaded photos remain in named Docker volumes across deployments. The frontend synchronizer explicitly preserves the `backend/` directory, while the backend synchronizer preserves local environment files and runtime data.
+The backend's database, Caddy state, and uploaded photos remain in named Docker volumes across deployments. The frontend synchronizer explicitly preserves the `backend/` directory, while the backend synchronizer preserves runtime data. The environment file is updated exclusively from the protected GitHub secret.
 
 Service-worker updates prompt for a reload so an update does not silently discard an open form. The development server intentionally does not register a service worker.
 

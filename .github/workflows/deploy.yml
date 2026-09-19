@@ -41,7 +41,13 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
 
       - name: Deploy frontend and backend
+        env:
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
         run: |
+          if [ -z "$BACKEND_ENV" ]; then
+            echo 'Missing required production secret: BACKEND_ENV' >&2
+            exit 1
+          fi
           ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             "$DEPLOY_USER@$DEPLOY_HOST" \
@@ -57,6 +63,11 @@ jobs:
             --exclude='vendor/' \
             -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             backend/ "$DEPLOY_USER@$DEPLOY_HOST:$BACKEND_DEPLOY_PATH/"
+          printf '%s\n' "$BACKEND_ENV" | \
+            ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
+              -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              "$DEPLOY_USER@$DEPLOY_HOST" \
+              "umask 077 && cat > '$BACKEND_DEPLOY_PATH/.env.local'"
 
       - name: Restart backend
         run: |
@@ -64,10 +75,6 @@ jobs:
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "cd '$BACKEND_DEPLOY_PATH' && \
-             if [ ! -f .env.local ]; then \
-               echo 'Missing backend deployment configuration: $BACKEND_DEPLOY_PATH/.env.local' >&2; \
-               exit 1; \
-             fi && \
              docker compose --env-file .env.local \
                -f compose.yaml -f compose.prod.yaml \
                up --build --detach --remove-orphans --wait"
