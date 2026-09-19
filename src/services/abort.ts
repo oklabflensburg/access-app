@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 // Browser permission prompts cannot be dismissed programmatically. Release the UI
 // immediately on cancellation, and dispose resources if permission is granted later.
 export function withAbort<T>(
@@ -6,7 +8,7 @@ export function withAbort<T>(
   dispose?: (value: T) => void,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
-    const abort = () => reject(new Error("Messung abgebrochen."));
+    const abort = () => reject(new Error(t("errors.measurementCancelled")));
     if (signal.aborted) abort();
     else signal.addEventListener("abort", abort, { once: true });
     promise.then(

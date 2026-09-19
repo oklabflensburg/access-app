@@ -8,8 +8,8 @@ use App\Dto\DeleteObservationInput;
 use App\Dto\ObservationInput;
 use App\Dto\ObservationListQuery;
 use App\Service\EditToken;
-use App\Service\ObservationStore;
-use App\Service\PhotoStore;
+use App\Service\ObservationService;
+use App\Service\PhotoService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
@@ -32,24 +32,24 @@ final class ObservationController extends AbstractController
         ObservationInput $input,
         Request $request,
         EditToken $editToken,
-        ObservationStore $store,
+        ObservationService $service,
     ): JsonResponse {
-        return $this->json($store->save($input, $editToken->hashFrom($request)));
+        return $this->json($service->save($input, $editToken->hashFrom($request)));
     }
 
     #[Route('', name: 'api_observations_list', methods: ['GET'], format: 'json')]
     public function list(
-        ObservationStore $store,
+        ObservationService $service,
         #[MapQueryString(validationFailedStatusCode: Response::HTTP_BAD_REQUEST)]
         ObservationListQuery $query = new ObservationListQuery(),
     ): JsonResponse {
-        return $this->json($store->list($query));
+        return $this->json($service->list($query));
     }
 
     #[Route('/{id}', name: 'api_observations_get', methods: ['GET'], format: 'json')]
-    public function getOne(string $id, ObservationStore $store): JsonResponse
+    public function getOne(string $id, ObservationService $service): JsonResponse
     {
-        return $this->json($store->get($id));
+        return $this->json($service->get($id));
     }
 
     #[Route('/{id}', name: 'api_observations_delete', methods: ['DELETE'], format: 'json')]
@@ -59,9 +59,9 @@ final class ObservationController extends AbstractController
         DeleteObservationInput $input,
         Request $request,
         EditToken $editToken,
-        ObservationStore $store,
+        ObservationService $service,
     ): JsonResponse {
-        return $this->json($store->delete($id, $input->revision, $editToken->hashFrom($request)));
+        return $this->json($service->delete($id, $input->revision, $editToken->hashFrom($request)));
     }
 
     #[Route('/{id}/photos', name: 'api_observations_photo_upload', methods: ['POST'])]
@@ -75,7 +75,7 @@ final class ObservationController extends AbstractController
         )]
         UploadedFile $photo,
         EditToken $editToken,
-        PhotoStore $photoStore,
+        PhotoService $photoService,
     ): JsonResponse {
         $photoId = $request->request->get('id');
         $revision = filter_var($request->request->get('revision'), FILTER_VALIDATE_INT);
@@ -85,13 +85,13 @@ final class ObservationController extends AbstractController
             throw new BadRequestHttpException('Invalid photo id or revision.');
         }
 
-        return $this->json($photoStore->upload($id, $photoId, $revision, $editToken->hashFrom($request), $photo));
+        return $this->json($photoService->upload($id, $photoId, $revision, $editToken->hashFrom($request), $photo));
     }
 
     #[Route('/{id}/photos/{photoId}', name: 'api_observations_photo_get', methods: ['GET'])]
-    public function getPhoto(string $id, string $photoId, PhotoStore $photoStore): BinaryFileResponse
+    public function getPhoto(string $id, string $photoId, PhotoService $photoService): BinaryFileResponse
     {
-        $response = $this->file($photoStore->findPath($id, $photoId));
+        $response = $this->file($photoService->findPath($id, $photoId));
         $response->headers->set('Content-Type', 'image/jpeg');
         $response->headers->set('Cache-Control', 'no-cache');
         $response->headers->set('X-Content-Type-Options', 'nosniff');

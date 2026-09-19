@@ -1,5 +1,7 @@
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
+import type { MapFeature } from "../types/map-feature";
+import { t } from "../i18n";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
@@ -13,16 +15,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(
-        body?.error ?? `Serverfehler ${response.status}.`,
-      );
+      throw new Error(body?.error ?? t("errors.server", { status: response.status }));
     }
     return (await response.json()) as T;
   } catch (cause) {
     if (controller.signal.aborted)
-      throw new Error(
-        "Zeitüberschreitung beim Server.",
-      );
+      throw new Error(t("errors.serverTimeout"));
     throw cause;
   } finally {
     clearTimeout(timeout);
@@ -73,4 +71,25 @@ export function getPublicObservations() {
   return request<{ observations: Observation[]; nextCursor: string | null }>(
     "/observations?limit=200",
   );
+}
+
+export function uploadMapFeature(feature: MapFeature) {
+  return request<{ id: string }>("/map-features", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${feature.editToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      id: feature.id,
+      type: feature.type,
+      name: feature.name,
+      geometry: feature.geometry,
+      createdAt: feature.createdAt,
+    }),
+  });
+}
+
+export function getPublicMapFeatures() {
+  return request<{ features: MapFeature[] }>("/map-features?limit=200");
 }

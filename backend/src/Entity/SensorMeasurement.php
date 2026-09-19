@@ -62,6 +62,11 @@ final class SensorMeasurement
         return $this->type;
     }
 
+    public function getObservation(): Observation
+    {
+        return $this->observation;
+    }
+
     /** @return array<string, mixed> */
     public function getSummary(): array
     {

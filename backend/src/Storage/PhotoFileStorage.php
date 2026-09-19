@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace App\Service;
+namespace App\Storage;
 
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 
-final class PhotoStorage
+final class PhotoFileStorage
 {
     public function __construct(
         #[Autowire('%kernel.project_dir%/var/photos')]
@@ -39,6 +39,11 @@ final class PhotoStorage
     public function path(string $storageKey): string
     {
         return $this->directory.'/'.basename($storageKey);
+    }
+
+    public function exists(string $storageKey): bool
+    {
+        return is_file($this->path($storageKey));
     }
 
     /** @param iterable<string|null> $storageKeys */

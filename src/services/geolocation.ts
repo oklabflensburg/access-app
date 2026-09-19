@@ -1,4 +1,5 @@
 import type { LocationData } from "../types/location";
+import { t } from "../i18n";
 
 function requestPosition(
   options: PositionOptions,
@@ -11,18 +12,18 @@ function requestPosition(
 function locationError(error: GeolocationPositionError): Error {
   return new Error(
     error.code === 1
-      ? "Standortfreigabe wurde verweigert."
+      ? t("errors.locationPermission")
       : error.code === 3
-        ? "Standortsuche hat zu lange gedauert."
-        : "Standort ist vorübergehend nicht verfügbar.",
+        ? t("errors.locationTimeout")
+        : t("errors.locationUnavailable"),
   );
 }
 
 export async function getCurrentLocation(): Promise<LocationData> {
   if (!window.isSecureContext)
-    throw new Error("Standort benötigt HTTPS oder localhost.");
+    throw new Error(t("errors.locationSecureContext"));
   if (!navigator.geolocation)
-    throw new Error("Dieser Browser unterstützt keinen Standort.");
+    throw new Error(t("errors.locationUnsupported"));
 
   let position: GeolocationPosition;
   try {

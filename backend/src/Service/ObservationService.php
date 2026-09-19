@@ -9,22 +9,25 @@ use App\Dto\ObservationListQuery;
 use App\Entity\Media;
 use App\Entity\Observation;
 use App\Entity\SensorMeasurement;
-use Doctrine\DBAL\Connection;
-use Doctrine\DBAL\LockMode;
-use Doctrine\DBAL\Types\Types;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Persistence\TransactionManager;
+use App\Repository\MediaRepository;
+use App\Repository\ObservationRepository;
+use App\Repository\SensorMeasurementRepository;
+use App\Storage\PhotoFileStorage;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\GoneHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
-final class ObservationStore
+final class ObservationService
 {
     public function __construct(
-        private readonly Connection $connection,
-        private readonly EntityManagerInterface $entityManager,
-        private readonly PhotoStorage $photoStorage,
+        private readonly ObservationRepository $observations,
+        private readonly MediaRepository $media,
+        private readonly SensorMeasurementRepository $sensors,
+        private readonly TransactionManager $transactions,
+        private readonly PhotoFileStorage $photoFiles,
     ) {
     }
 
@@ -44,27 +47,10 @@ final class ObservationStore
         $payloadHash = hash('sha256', json_encode($input->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         $removedFiles = [];
 
-        $this->connection->transactional(function (Connection $connection) use ($input, $tokenHash, $capturedAt, $payloadHash, &$removedFiles): void {
-            $params = $this->observationParameters($input, $tokenHash, $capturedAt, $payloadHash);
-            $inserted = $connection->executeStatement(<<<'SQL'
-                INSERT INTO observations (
-                    id, revision, edit_token_hash, payload_hash, deleted, captured_at, location,
-                    location_accuracy_m, altitude_m, altitude_accuracy_m, heading_degrees,
-                    speed_mps, location_timestamp_ms, wheelchair_accessible, ramp_available,
-                    accessible_toilet, elevator_available, steps_at_entrance,
-                    steps_count_is_minimum, surface, comment
-                ) VALUES (
-                    :id, :revision, :edit_token_hash, :payload_hash, FALSE, :captured_at,
-                    ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
-                    :location_accuracy_m, :altitude_m, :altitude_accuracy_m, :heading_degrees,
-                    :speed_mps, :location_timestamp_ms, :wheelchair_accessible, :ramp_available,
-                    :accessible_toilet, :elevator_available, :steps_at_entrance,
-                    :steps_count_is_minimum, :surface, :comment
-                ) ON CONFLICT (id) DO NOTHING
-                SQL, $params, $this->observationParameterTypes());
+        $this->transactions->transactional(function () use ($input, $tokenHash, $capturedAt, $payloadHash, &$removedFiles): void {
+            $inserted = $this->observations->insertIfAbsent($input, $tokenHash, $capturedAt, $payloadHash);
 
-            $this->entityManager->clear(Observation::class);
-            $current = $this->entityManager->find(Observation::class, $input->id, LockMode::PESSIMISTIC_WRITE);
+            $current = $this->observations->findForUpdate($input->id);
             if (null === $current) {
                 throw new \RuntimeException('The observation could not be stored.');
             }
@@ -86,22 +72,19 @@ final class ObservationStore
                 }
 
                 $current->applyPayload($input, $capturedAt, $payloadHash);
-                $connection->executeStatement(
-                    'UPDATE observations SET location = ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography WHERE id = :id',
-                    [
-                        'id' => $input->id,
-                        'longitude' => $input->location->longitude,
-                        'latitude' => $input->location->latitude,
-                    ],
+                $this->observations->updateLocation(
+                    $input->id,
+                    $input->location->longitude,
+                    $input->location->latitude,
                 );
             }
 
-            $removedFiles = $this->syncMediaManifest($connection, $current, $input);
+            $removedFiles = $this->syncMediaManifest($current, $input);
             $this->syncSensors($current, $input, $capturedAt);
-            $this->entityManager->flush();
+            $this->transactions->flush();
         });
 
-        $this->photoStorage->remove($removedFiles);
+        $this->photoFiles->remove($removedFiles);
 
         return ['id' => $input->id, 'revision' => $input->revision];
     }
@@ -110,7 +93,7 @@ final class ObservationStore
     public function get(string $id): array
     {
         $this->assertUuid($id, 'Invalid observation id.');
-        $observation = $this->entityManager->find(Observation::class, $id);
+        $observation = $this->observations->find($id);
         if (null === $observation || $observation->isDeleted()) {
             throw new NotFoundHttpException('Observation not found.');
         }
@@ -121,58 +104,36 @@ final class ObservationStore
     /** @return array{observations: list<array<string, mixed>>, nextCursor: string|null} */
     public function list(ObservationListQuery $query): array
     {
-        $observationIds = null;
+        $bounds = null;
         if (null !== $query->bbox) {
-            $bounds = explode(',', $query->bbox);
-            if (4 !== count($bounds) || array_filter($bounds, 'is_numeric') !== $bounds) {
+            $parts = explode(',', $query->bbox);
+            if (4 !== count($parts) || array_filter($parts, 'is_numeric') !== $parts) {
                 throw new BadRequestHttpException('bbox must be west,south,east,north.');
             }
-            [$west, $south, $east, $north] = array_map('floatval', $bounds);
+            [$west, $south, $east, $north] = array_map('floatval', $parts);
             if ($west < -180 || $west > 180 || $east < -180 || $east > 180
                 || $south < -90 || $south > 90 || $north < -90 || $north > 90 || $south > $north) {
                 throw new BadRequestHttpException('Invalid bounding box.');
             }
-            $where = [
-                'NOT deleted',
-                'ST_Y(location::geometry) BETWEEN :south AND :north',
-                $west > $east
-                    ? '(ST_X(location::geometry) >= :west OR ST_X(location::geometry) <= :east)'
-                    : 'ST_X(location::geometry) BETWEEN :west AND :east',
-            ];
-            $params = ['west' => $west, 'south' => $south, 'east' => $east, 'north' => $north];
-            if (null !== $query->cursor) {
-                $where[] = 'id < :cursor';
-                $params['cursor'] = $query->cursor;
-            }
-            $observationIds = $this->connection->fetchFirstColumn(
-                'SELECT id FROM observations WHERE '.implode(' AND ', $where)
-                .' ORDER BY id DESC LIMIT '.($query->limit + 1),
-                $params,
-            );
+            $bounds = [$west, $south, $east, $north];
         }
 
-        if (null === $observationIds) {
-            $builder = $this->entityManager->createQueryBuilder()
-                ->select('observation')
-                ->from(Observation::class, 'observation')
-                ->where('observation.deleted = false')
-                ->orderBy('observation.id', 'DESC')
-                ->setMaxResults($query->limit + 1);
-            if (null !== $query->cursor) {
-                $builder->andWhere('observation.id < :cursor')->setParameter('cursor', $query->cursor);
-            }
-            $observations = $builder->getQuery()->getResult();
-        } else {
-            $observations = array_values(array_filter(array_map(
-                fn (string $id): ?Observation => $this->entityManager->find(Observation::class, $id),
-                $observationIds,
-            )));
-        }
+        $observations = $this->observations->findActivePage($query->cursor, $query->limit + 1, $bounds);
         $hasMore = count($observations) > $query->limit;
         $observations = array_slice($observations, 0, $query->limit);
+        $media = $this->groupMedia($this->media->findForObservations($observations));
+        $sensors = $this->groupSensors($this->sensors->findForObservations($observations));
 
         return [
-            'observations' => array_map(fn (Observation $observation): array => $this->hydrate($observation, false), $observations),
+            'observations' => array_map(
+                fn (Observation $observation): array => $this->hydrate(
+                    $observation,
+                    false,
+                    $media[$observation->getId()] ?? [],
+                    $sensors[$observation->getId()] ?? [],
+                ),
+                $observations,
+            ),
             'nextCursor' => $hasMore ? end($observations)->getId() : null,
         ];
     }
@@ -183,14 +144,9 @@ final class ObservationStore
         $this->assertUuid($id, 'Invalid observation id.');
         $removedFiles = [];
 
-        $this->connection->transactional(function (Connection $connection) use ($id, $revision, $tokenHash, &$removedFiles): void {
-            $connection->executeStatement(<<<'SQL'
-                INSERT INTO observations (id, revision, edit_token_hash, deleted)
-                VALUES (:id, :revision, :edit_token_hash, TRUE)
-                ON CONFLICT (id) DO NOTHING
-                SQL, ['id' => $id, 'revision' => $revision, 'edit_token_hash' => $tokenHash]);
-            $this->entityManager->clear(Observation::class);
-            $current = $this->entityManager->find(Observation::class, $id, LockMode::PESSIMISTIC_WRITE);
+        $this->transactions->transactional(function () use ($id, $revision, $tokenHash, &$removedFiles): void {
+            $this->observations->insertTombstoneIfAbsent($id, $revision, $tokenHash);
+            $current = $this->observations->findForUpdate($id);
             if (null === $current) {
                 throw new \RuntimeException('The deletion tombstone could not be stored.');
             }
@@ -202,87 +158,39 @@ final class ObservationStore
                 throw new ConflictHttpException('Revision conflict.');
             }
 
-            foreach ($this->entityManager->getRepository(Media::class)->findBy(['observation' => $current]) as $media) {
+            foreach ($this->media->findForObservation($current) as $media) {
                 $storageKey = $media->getStorageKey();
                 if (null !== $storageKey) {
                     $removedFiles[] = $storageKey;
                 }
-                $this->entityManager->remove($media);
+                $this->media->remove($media);
             }
-            foreach ($this->entityManager->getRepository(SensorMeasurement::class)->findBy(['observation' => $current]) as $sensor) {
-                $this->entityManager->remove($sensor);
+            foreach ($this->sensors->findForObservation($current) as $sensor) {
+                $this->sensors->remove($sensor);
             }
             $current->markDeleted($revision);
-            $this->entityManager->flush();
+            $this->transactions->flush();
         });
 
-        $this->photoStorage->remove($removedFiles);
+        $this->photoFiles->remove($removedFiles);
 
         return ['id' => $id, 'revision' => $revision];
     }
 
-    /** @return array<string, mixed> */
-    private function observationParameters(
-        ObservationInput $input,
-        string $tokenHash,
-        \DateTimeImmutable $capturedAt,
-        string $payloadHash,
-    ): array {
-        return [
-            'id' => $input->id,
-            'revision' => $input->revision,
-            'edit_token_hash' => $tokenHash,
-            'payload_hash' => $payloadHash,
-            'captured_at' => $capturedAt->format('Y-m-d H:i:s.uP'),
-            'longitude' => $input->location->longitude,
-            'latitude' => $input->location->latitude,
-            'location_accuracy_m' => $input->location->accuracy,
-            'altitude_m' => $input->location->altitude,
-            'altitude_accuracy_m' => $input->location->altitudeAccuracy,
-            'heading_degrees' => $input->location->heading,
-            'speed_mps' => $input->location->speed,
-            'location_timestamp_ms' => $input->location->timestamp,
-            'wheelchair_accessible' => $input->accessibility->wheelchairAccessible,
-            'ramp_available' => $input->accessibility->ramp,
-            'accessible_toilet' => $input->accessibility->accessibleToilet,
-            'elevator_available' => $input->accessibility->elevator,
-            'steps_at_entrance' => $input->accessibility->steps,
-            'steps_count_is_minimum' => 3 === $input->accessibility->steps,
-            'surface' => $input->accessibility->surface,
-            'comment' => $input->comment,
-        ];
-    }
-
-    /** @return array<string, string> */
-    private function observationParameterTypes(): array
-    {
-        return [
-            'wheelchair_accessible' => Types::BOOLEAN,
-            'ramp_available' => Types::BOOLEAN,
-            'accessible_toilet' => Types::BOOLEAN,
-            'elevator_available' => Types::BOOLEAN,
-            'steps_count_is_minimum' => Types::BOOLEAN,
-        ];
-    }
-
     /** @return list<string|null> */
-    private function syncMediaManifest(Connection $connection, Observation $observation, ObservationInput $input): array
+    private function syncMediaManifest(Observation $observation, ObservationInput $input): array
     {
         $removed = [];
-        foreach ($this->entityManager->getRepository(Media::class)->findBy(['observation' => $observation]) as $media) {
+        foreach ($this->media->findForObservation($observation) as $media) {
             if (!in_array($media->getId(), $input->photoIds, true)) {
                 $removed[] = $media->getStorageKey();
-                $this->entityManager->remove($media);
+                $this->media->remove($media);
             }
         }
 
         foreach ($input->photoIds as $order => $photoId) {
-            $connection->executeStatement(<<<'SQL'
-                INSERT INTO media (id, observation_id, sort_order)
-                VALUES (:id, :observation_id, :sort_order)
-                ON CONFLICT (id) DO NOTHING
-                SQL, ['id' => $photoId, 'observation_id' => $input->id, 'sort_order' => $order]);
-            $media = $this->entityManager->find(Media::class, $photoId);
+            $this->media->insertIfAbsent($photoId, $input->id, $order);
+            $media = $this->media->findMedia($photoId);
             if (null === $media || !$media->belongsTo($input->id)) {
                 throw new ConflictHttpException('Photo id already belongs to another observation.');
             }
@@ -294,10 +202,10 @@ final class ObservationStore
 
     private function syncSensors(Observation $observation, ObservationInput $input, \DateTimeImmutable $capturedAt): void
     {
-        foreach ($this->entityManager->getRepository(SensorMeasurement::class)->findBy(['observation' => $observation]) as $sensor) {
-            $this->entityManager->remove($sensor);
+        foreach ($this->sensors->findForObservation($observation) as $sensor) {
+            $this->sensors->remove($sensor);
         }
-        $this->entityManager->flush();
+        $this->transactions->flush();
 
         $payload = $input->toArray();
         if (isset($payload['noise'])) {
@@ -333,7 +241,7 @@ final class ObservationStore
         array $summary,
         ?array $samples,
     ): void {
-        $this->entityManager->persist(new SensorMeasurement(
+        $this->sensors->persist(new SensorMeasurement(
             $observation,
             $type,
             $startedAt,
@@ -343,8 +251,18 @@ final class ObservationStore
         ));
     }
 
-    /** @return array<string, mixed> */
-    private function hydrate(Observation $observation, bool $includeSamples): array
+    /**
+     * @param list<Media>|null $media
+     * @param list<SensorMeasurement>|null $sensors
+     *
+     * @return array<string, mixed>
+     */
+    private function hydrate(
+        Observation $observation,
+        bool $includeSamples,
+        ?array $media = null,
+        ?array $sensors = null,
+    ): array
     {
         $row = $observation->toRow();
         $payload = [
@@ -372,14 +290,11 @@ final class ObservationStore
             'comment' => (string) ($row['comment'] ?? ''),
             'photoIds' => array_map(
                 static fn (Media $media): string => $media->getId(),
-                $this->entityManager->getRepository(Media::class)->findBy(
-                    ['observation' => $observation],
-                    ['sortOrder' => 'ASC', 'id' => 'ASC'],
-                ),
+                $media ?? $this->media->findForObservation($observation),
             ),
         ];
 
-        $sensors = $this->entityManager->getRepository(SensorMeasurement::class)->findBy(['observation' => $observation]);
+        $sensors ??= $this->sensors->findForObservation($observation);
         foreach ($sensors as $sensor) {
             if ('noise' === $sensor->getType()) {
                 $payload['noise'] = $sensor->getSummary();
@@ -389,6 +304,28 @@ final class ObservationStore
         }
 
         return $payload;
+    }
+
+    /** @param list<Media> $media @return array<string, list<Media>> */
+    private function groupMedia(array $media): array
+    {
+        $grouped = [];
+        foreach ($media as $item) {
+            $grouped[$item->getObservation()->getId()][] = $item;
+        }
+
+        return $grouped;
+    }
+
+    /** @param list<SensorMeasurement> $sensors @return array<string, list<SensorMeasurement>> */
+    private function groupSensors(array $sensors): array
+    {
+        $grouped = [];
+        foreach ($sensors as $sensor) {
+            $grouped[$sensor->getObservation()->getId()][] = $sensor;
+        }
+
+        return $grouped;
     }
 
     private function assertUuid(string $value, string $message): void

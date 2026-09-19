@@ -1,6 +1,12 @@
 import { database } from "./storage";
-import { removeRemoteObservation, uploadObservation, uploadPhoto } from "./api";
+import {
+  removeRemoteObservation,
+  uploadMapFeature,
+  uploadObservation,
+  uploadPhoto,
+} from "./api";
 import type { Observation } from "../types/observation";
+import { t } from "../i18n";
 
 let running: Promise<{ synced: number; failed: number }> | undefined;
 export function syncObservations(
@@ -19,9 +25,7 @@ export function syncObservations(
 async function runQueue(force: boolean) {
   const result = { synced: 0, failed: 0 };
   if (!navigator.onLine)
-    throw new Error(
-      "Offline. Einträge bleiben auf diesem Gerät gespeichert.",
-    );
+    throw new Error(t("errors.offline"));
   // A terminated tab can leave a row in syncing. The cross-tab lock makes recovery safe.
   const queue = await database.observations
     .where("syncStatus")
@@ -35,9 +39,7 @@ async function runQueue(force: boolean) {
       if (o.deleted) {
         const ack = await removeRemoteObservation(o);
         if (ack.id !== o.id || ack.revision !== o.revision)
-          throw new Error(
-            "Löschung konnte nicht bestätigt werden.",
-          );
+          throw new Error(t("errors.deleteAcknowledgement"));
       } else {
         const [sensors, photos] = await Promise.all([
           database.sensors.get(o.id),
@@ -45,20 +47,14 @@ async function runQueue(force: boolean) {
         ]);
         const ack = await uploadObservation(o, sensors);
         if (ack.id !== o.id || ack.revision !== o.revision)
-          throw new Error(
-            "Der Eintrag wurde auf dem Server geändert.",
-          );
+          throw new Error(t("errors.remoteConflict"));
         for (const id of o.photoIds ?? []) {
           const photo = photos.find((p) => p.id === id);
           if (!photo)
-            throw new Error(
-              "Ein lokales Foto fehlt.",
-            );
+            throw new Error(t("errors.localPhotoMissing"));
           const photoAck = await uploadPhoto(o, photo);
           if (photoAck.id !== id)
-            throw new Error(
-              "Foto konnte nicht bestätigt werden.",
-            );
+            throw new Error(t("errors.photoAcknowledgement"));
         }
       }
       await updateIfCurrent(o, {
@@ -78,7 +74,42 @@ async function runQueue(force: boolean) {
         lastError:
           cause instanceof Error
             ? cause.message
-            : "Upload fehlgeschlagen.",
+            : t("errors.upload"),
+      });
+      result.failed++;
+    }
+  }
+  const featureQueue = await database.mapFeatures
+    .where("syncStatus")
+    .anyOf("ready", "failed", "syncing")
+    .toArray();
+  for (const feature of featureQueue) {
+    if (!navigator.onLine) break;
+    if (!force && (feature.nextRetryAt ?? 0) > Date.now()) continue;
+    try {
+      await database.mapFeatures.update(feature.id, {
+        syncStatus: "syncing",
+        lastError: "",
+      });
+      const ack = await uploadMapFeature(feature);
+      if (ack.id !== feature.id)
+        throw new Error(t("errors.areaAcknowledgement"));
+      await database.mapFeatures.update(feature.id, {
+        syncStatus: "synced",
+        attempts: 0,
+        nextRetryAt: 0,
+        lastError: "",
+      });
+      result.synced++;
+    } catch (cause) {
+      const attempts = (feature.attempts ?? 0) + 1;
+      await database.mapFeatures.update(feature.id, {
+        syncStatus: "failed",
+        attempts,
+        nextRetryAt:
+          Date.now() + Math.min(300000, 5000 * 2 ** Math.min(attempts, 6)),
+        lastError:
+          cause instanceof Error ? cause.message : t("errors.upload"),
       });
       result.failed++;
     }

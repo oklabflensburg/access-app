@@ -2,11 +2,11 @@
 
 namespace App\Service;
 
-use Doctrine\DBAL\Connection;
+use App\Persistence\DatabaseHealthCheck;
 
 final readonly class HealthCheck
 {
-    public function __construct(private Connection $connection)
+    public function __construct(private DatabaseHealthCheck $database)
     {
     }
 
@@ -18,7 +18,7 @@ final readonly class HealthCheck
         return [
             'status' => 'ok',
             'database' => 'ok',
-            'postgis' => (string) $this->connection->fetchOne('SELECT PostGIS_Version()'),
+            'postgis' => $this->database->postgisVersion(),
         ];
     }
 }
