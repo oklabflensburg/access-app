@@ -69,7 +69,7 @@ jobs:
               "$DEPLOY_USER@$DEPLOY_HOST" \
               "umask 077 && cat > '$BACKEND_DEPLOY_PATH/.env.local'"
 
-      - name: Restart backend
+      - name: Build and start backend
         run: |
           ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \

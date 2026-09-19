@@ -44,6 +44,7 @@ services:
   database:
     image: postgis/postgis:${POSTGRES_VERSION:-17}-${POSTGIS_VERSION:-3.5}
     platform: linux/amd64
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-api}
       # You should definitely change the password in production
