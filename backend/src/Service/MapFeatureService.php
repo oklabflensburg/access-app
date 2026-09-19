@@ -6,15 +6,18 @@ namespace App\Service;
 
 use App\Dto\MapFeatureInput;
 use App\Dto\MapFeatureListQuery;
-use App\Store\MapFeatureStore;
+use App\Persistence\TransactionManager;
+use App\Repository\MapFeatureRepository;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 final class MapFeatureService
 {
-    public function __construct(private readonly MapFeatureStore $store)
-    {
+    public function __construct(
+        private readonly MapFeatureRepository $features,
+        private readonly TransactionManager $transactions,
+    ) {
     }
 
     /** @return array{id: string} */
@@ -26,17 +29,17 @@ final class MapFeatureService
             throw new BadRequestHttpException('Invalid creation date.');
         }
         $geometry = json_encode($input->geometry, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
-        if (!$this->store->isValidPolygon($geometry)) {
+        if (!$this->features->isValidPolygon($geometry)) {
             throw new BadRequestHttpException('The polygon is not a valid, non-self-intersecting area.');
         }
 
-        $this->store->transactional(function () use ($input, $tokenHash, $createdAt, $geometry): void {
-            $inserted = $this->store->insertIfAbsent($input, $tokenHash, $createdAt, $geometry);
+        $this->transactions->transactional(function () use ($input, $tokenHash, $createdAt, $geometry): void {
+            $inserted = $this->features->insertIfAbsent($input, $tokenHash, $createdAt, $geometry);
             if (1 === $inserted) {
                 return;
             }
 
-            $current = $this->store->findForUpdate($input->id, $geometry);
+            $current = $this->features->findForUpdate($input->id, $geometry);
             if (false === $current) {
                 throw new BadRequestHttpException('Unknown map feature type.');
             }
@@ -56,7 +59,7 @@ final class MapFeatureService
     /** @return array{features: list<array<string, mixed>>} */
     public function list(MapFeatureListQuery $query): array
     {
-        $rows = $this->store->findActive($query->limit);
+        $rows = $this->features->findActive($query->limit);
 
         return ['features' => array_map(static function (array $row): array {
             return [

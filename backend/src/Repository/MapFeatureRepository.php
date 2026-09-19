@@ -2,22 +2,16 @@
 
 declare(strict_types=1);
 
-namespace App\Store;
+namespace App\Repository;
 
 use App\Dto\MapFeatureInput;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\ParameterType;
 
-final class MapFeatureStore
+final class MapFeatureRepository
 {
     public function __construct(private readonly Connection $connection)
     {
-    }
-
-    /** @template T @param callable(): T $operation @return T */
-    public function transactional(callable $operation): mixed
-    {
-        return $this->connection->transactional(static fn (): mixed => $operation());
     }
 
     public function isValidPolygon(string $geometry): bool

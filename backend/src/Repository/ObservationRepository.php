@@ -2,29 +2,21 @@
 
 declare(strict_types=1);
 
-namespace App\Store;
+namespace App\Repository;
 
 use App\Dto\ObservationInput;
-use App\Entity\Media;
 use App\Entity\Observation;
-use App\Entity\SensorMeasurement;
 use Doctrine\DBAL\Connection;
 use Doctrine\DBAL\LockMode;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\EntityManagerInterface;
 
-final class ObservationStore
+final class ObservationRepository
 {
     public function __construct(
         private readonly Connection $connection,
         private readonly EntityManagerInterface $entityManager,
     ) {
-    }
-
-    /** @template T @param callable(): T $operation @return T */
-    public function transactional(callable $operation): mixed
-    {
-        return $this->entityManager->wrapInTransaction(static fn (): mixed => $operation());
     }
 
     public function insertIfAbsent(
@@ -160,87 +152,4 @@ final class ObservationStore
             SQL, ['id' => $id, 'revision' => $revision, 'edit_token_hash' => $tokenHash]);
     }
 
-    /** @return list<Media> */
-    public function findMedia(Observation $observation): array
-    {
-        return $this->entityManager->getRepository(Media::class)->findBy(
-            ['observation' => $observation],
-            ['sortOrder' => 'ASC', 'id' => 'ASC'],
-        );
-    }
-
-    /** @param list<Observation> $observations @return list<Media> */
-    public function findMediaForObservations(array $observations): array
-    {
-        if ([] === $observations) {
-            return [];
-        }
-
-        return $this->entityManager->createQueryBuilder()
-            ->select('media')
-            ->from(Media::class, 'media')
-            ->where('media.observation IN (:observations)')
-            ->setParameter('observations', $observations)
-            ->orderBy('media.sortOrder', 'ASC')
-            ->addOrderBy('media.id', 'ASC')
-            ->getQuery()
-            ->getResult();
-    }
-
-    public function insertMediaIfAbsent(string $id, string $observationId, int $sortOrder): void
-    {
-        $this->connection->executeStatement(<<<'SQL'
-            INSERT INTO media (id, observation_id, sort_order)
-            VALUES (:id, :observation_id, :sort_order)
-            ON CONFLICT (id) DO NOTHING
-            SQL, ['id' => $id, 'observation_id' => $observationId, 'sort_order' => $sortOrder]);
-    }
-
-    public function findMediaById(string $id): ?Media
-    {
-        return $this->entityManager->find(Media::class, $id);
-    }
-
-    public function removeMedia(Media $media): void
-    {
-        $this->entityManager->remove($media);
-    }
-
-    /** @return list<SensorMeasurement> */
-    public function findSensors(Observation $observation): array
-    {
-        return $this->entityManager->getRepository(SensorMeasurement::class)->findBy(['observation' => $observation]);
-    }
-
-    /** @param list<Observation> $observations @return list<SensorMeasurement> */
-    public function findSensorsForObservations(array $observations): array
-    {
-        if ([] === $observations) {
-            return [];
-        }
-
-        return $this->entityManager->createQueryBuilder()
-            ->select('sensor')
-            ->from(SensorMeasurement::class, 'sensor')
-            ->where('sensor.observation IN (:observations)')
-            ->setParameter('observations', $observations)
-            ->orderBy('sensor.type', 'ASC')
-            ->getQuery()
-            ->getResult();
-    }
-
-    public function persistSensor(SensorMeasurement $sensor): void
-    {
-        $this->entityManager->persist($sensor);
-    }
-
-    public function removeSensor(SensorMeasurement $sensor): void
-    {
-        $this->entityManager->remove($sensor);
-    }
-
-    public function flush(): void
-    {
-        $this->entityManager->flush();
-    }
 }

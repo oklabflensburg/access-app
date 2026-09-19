@@ -9,8 +9,11 @@ use App\Dto\ObservationListQuery;
 use App\Entity\Media;
 use App\Entity\Observation;
 use App\Entity\SensorMeasurement;
+use App\Persistence\TransactionManager;
+use App\Repository\MediaRepository;
+use App\Repository\ObservationRepository;
+use App\Repository\SensorMeasurementRepository;
 use App\Storage\PhotoFileStorage;
-use App\Store\ObservationStore;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\GoneHttpException;
@@ -20,7 +23,10 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 final class ObservationService
 {
     public function __construct(
-        private readonly ObservationStore $store,
+        private readonly ObservationRepository $observations,
+        private readonly MediaRepository $media,
+        private readonly SensorMeasurementRepository $sensors,
+        private readonly TransactionManager $transactions,
         private readonly PhotoFileStorage $photoFiles,
     ) {
     }
@@ -41,10 +47,10 @@ final class ObservationService
         $payloadHash = hash('sha256', json_encode($input->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
         $removedFiles = [];
 
-        $this->store->transactional(function () use ($input, $tokenHash, $capturedAt, $payloadHash, &$removedFiles): void {
-            $inserted = $this->store->insertIfAbsent($input, $tokenHash, $capturedAt, $payloadHash);
+        $this->transactions->transactional(function () use ($input, $tokenHash, $capturedAt, $payloadHash, &$removedFiles): void {
+            $inserted = $this->observations->insertIfAbsent($input, $tokenHash, $capturedAt, $payloadHash);
 
-            $current = $this->store->findForUpdate($input->id);
+            $current = $this->observations->findForUpdate($input->id);
             if (null === $current) {
                 throw new \RuntimeException('The observation could not be stored.');
             }
@@ -66,7 +72,7 @@ final class ObservationService
                 }
 
                 $current->applyPayload($input, $capturedAt, $payloadHash);
-                $this->store->updateLocation(
+                $this->observations->updateLocation(
                     $input->id,
                     $input->location->longitude,
                     $input->location->latitude,
@@ -75,7 +81,7 @@ final class ObservationService
 
             $removedFiles = $this->syncMediaManifest($current, $input);
             $this->syncSensors($current, $input, $capturedAt);
-            $this->store->flush();
+            $this->transactions->flush();
         });
 
         $this->photoFiles->remove($removedFiles);
@@ -87,7 +93,7 @@ final class ObservationService
     public function get(string $id): array
     {
         $this->assertUuid($id, 'Invalid observation id.');
-        $observation = $this->store->find($id);
+        $observation = $this->observations->find($id);
         if (null === $observation || $observation->isDeleted()) {
             throw new NotFoundHttpException('Observation not found.');
         }
@@ -112,11 +118,11 @@ final class ObservationService
             $bounds = [$west, $south, $east, $north];
         }
 
-        $observations = $this->store->findActivePage($query->cursor, $query->limit + 1, $bounds);
+        $observations = $this->observations->findActivePage($query->cursor, $query->limit + 1, $bounds);
         $hasMore = count($observations) > $query->limit;
         $observations = array_slice($observations, 0, $query->limit);
-        $media = $this->groupMedia($this->store->findMediaForObservations($observations));
-        $sensors = $this->groupSensors($this->store->findSensorsForObservations($observations));
+        $media = $this->groupMedia($this->media->findForObservations($observations));
+        $sensors = $this->groupSensors($this->sensors->findForObservations($observations));
 
         return [
             'observations' => array_map(
@@ -138,9 +144,9 @@ final class ObservationService
         $this->assertUuid($id, 'Invalid observation id.');
         $removedFiles = [];
 
-        $this->store->transactional(function () use ($id, $revision, $tokenHash, &$removedFiles): void {
-            $this->store->insertTombstoneIfAbsent($id, $revision, $tokenHash);
-            $current = $this->store->findForUpdate($id);
+        $this->transactions->transactional(function () use ($id, $revision, $tokenHash, &$removedFiles): void {
+            $this->observations->insertTombstoneIfAbsent($id, $revision, $tokenHash);
+            $current = $this->observations->findForUpdate($id);
             if (null === $current) {
                 throw new \RuntimeException('The deletion tombstone could not be stored.');
             }
@@ -152,18 +158,18 @@ final class ObservationService
                 throw new ConflictHttpException('Revision conflict.');
             }
 
-            foreach ($this->store->findMedia($current) as $media) {
+            foreach ($this->media->findForObservation($current) as $media) {
                 $storageKey = $media->getStorageKey();
                 if (null !== $storageKey) {
                     $removedFiles[] = $storageKey;
                 }
-                $this->store->removeMedia($media);
+                $this->media->remove($media);
             }
-            foreach ($this->store->findSensors($current) as $sensor) {
-                $this->store->removeSensor($sensor);
+            foreach ($this->sensors->findForObservation($current) as $sensor) {
+                $this->sensors->remove($sensor);
             }
             $current->markDeleted($revision);
-            $this->store->flush();
+            $this->transactions->flush();
         });
 
         $this->photoFiles->remove($removedFiles);
@@ -175,16 +181,16 @@ final class ObservationService
     private function syncMediaManifest(Observation $observation, ObservationInput $input): array
     {
         $removed = [];
-        foreach ($this->store->findMedia($observation) as $media) {
+        foreach ($this->media->findForObservation($observation) as $media) {
             if (!in_array($media->getId(), $input->photoIds, true)) {
                 $removed[] = $media->getStorageKey();
-                $this->store->removeMedia($media);
+                $this->media->remove($media);
             }
         }
 
         foreach ($input->photoIds as $order => $photoId) {
-            $this->store->insertMediaIfAbsent($photoId, $input->id, $order);
-            $media = $this->store->findMediaById($photoId);
+            $this->media->insertIfAbsent($photoId, $input->id, $order);
+            $media = $this->media->findMedia($photoId);
             if (null === $media || !$media->belongsTo($input->id)) {
                 throw new ConflictHttpException('Photo id already belongs to another observation.');
             }
@@ -196,10 +202,10 @@ final class ObservationService
 
     private function syncSensors(Observation $observation, ObservationInput $input, \DateTimeImmutable $capturedAt): void
     {
-        foreach ($this->store->findSensors($observation) as $sensor) {
-            $this->store->removeSensor($sensor);
+        foreach ($this->sensors->findForObservation($observation) as $sensor) {
+            $this->sensors->remove($sensor);
         }
-        $this->store->flush();
+        $this->transactions->flush();
 
         $payload = $input->toArray();
         if (isset($payload['noise'])) {
@@ -235,7 +241,7 @@ final class ObservationService
         array $summary,
         ?array $samples,
     ): void {
-        $this->store->persistSensor(new SensorMeasurement(
+        $this->sensors->persist(new SensorMeasurement(
             $observation,
             $type,
             $startedAt,
@@ -284,11 +290,11 @@ final class ObservationService
             'comment' => (string) ($row['comment'] ?? ''),
             'photoIds' => array_map(
                 static fn (Media $media): string => $media->getId(),
-                $media ?? $this->store->findMedia($observation),
+                $media ?? $this->media->findForObservation($observation),
             ),
         ];
 
-        $sensors ??= $this->store->findSensors($observation);
+        $sensors ??= $this->sensors->findForObservation($observation);
         foreach ($sensors as $sensor) {
             if ('noise' === $sensor->getType()) {
                 $payload['noise'] = $sensor->getSummary();

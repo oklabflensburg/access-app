@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Persistence\TransactionManager;
+use App\Repository\MediaRepository;
+use App\Repository\ObservationRepository;
 use App\Storage\PhotoFileStorage;
-use App\Store\MediaStore;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
@@ -15,7 +17,9 @@ use Symfony\Component\HttpKernel\Exception\UnsupportedMediaTypeHttpException;
 final class PhotoService
 {
     public function __construct(
-        private readonly MediaStore $store,
+        private readonly MediaRepository $media,
+        private readonly ObservationRepository $observations,
+        private readonly TransactionManager $transactions,
         private readonly PhotoFileStorage $storage,
     ) {
     }
@@ -62,7 +66,7 @@ final class PhotoService
         $wroteFile = false;
 
         try {
-            $this->store->transactional(function () use (
+            $this->transactions->transactional(function () use (
                 $observationId,
                 $photoId,
                 $revision,
@@ -75,8 +79,7 @@ final class PhotoService
                 &$oldStorageKey,
                 &$wroteFile,
             ): void {
-                $this->store->clear();
-                $observation = $this->store->findObservationForUpdate($observationId);
+                $observation = $this->observations->findForUpdate($observationId);
                 if (null === $observation || $observation->isDeleted()) {
                     throw new NotFoundHttpException('Observation not found.');
                 }
@@ -87,7 +90,7 @@ final class PhotoService
                     throw new ConflictHttpException('Photo does not belong to the current revision.');
                 }
 
-                $media = $this->store->findMediaForUpdate($photoId);
+                $media = $this->media->findMediaForUpdate($photoId);
                 if (null === $media || !$media->belongsTo($observationId)) {
                     throw new ConflictHttpException('Photo does not belong to the current revision.');
                 }
@@ -127,7 +130,7 @@ final class PhotoService
     {
         $this->assertUuid($observationId);
         $this->assertUuid($photoId);
-        $media = $this->store->findMedia($photoId);
+        $media = $this->media->findMedia($photoId);
         if (null === $media
             || !$media->belongsTo($observationId)
             || !$media->isUploaded()
