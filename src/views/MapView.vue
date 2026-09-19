@@ -39,6 +39,7 @@ const markers = computed(() => {
 const ownedObservationIds = computed(
   () => new Set(observations.observations.map((observation) => observation.id)),
 );
+
 const features = computed(() => {
   const localIds = new Set(localFeatures.value.map((feature) => feature.id));
   return [

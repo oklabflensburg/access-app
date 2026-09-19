@@ -7,7 +7,7 @@ namespace App\Controller;
 use App\Dto\MapFeatureInput;
 use App\Dto\MapFeatureListQuery;
 use App\Service\EditToken;
-use App\Service\MapFeatureStore;
+use App\Service\MapFeatureService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -25,17 +25,17 @@ final class MapFeatureController extends AbstractController
         MapFeatureInput $input,
         Request $request,
         EditToken $editToken,
-        MapFeatureStore $store,
+        MapFeatureService $service,
     ): JsonResponse {
-        return $this->json($store->save($input, $editToken->hashFrom($request)));
+        return $this->json($service->save($input, $editToken->hashFrom($request)));
     }
 
     #[Route('', name: 'api_map_features_list', methods: ['GET'], format: 'json')]
     public function list(
-        MapFeatureStore $store,
+        MapFeatureService $service,
         #[MapQueryString(validationFailedStatusCode: Response::HTTP_BAD_REQUEST)]
         MapFeatureListQuery $query = new MapFeatureListQuery(),
     ): JsonResponse {
-        return $this->json($store->list($query));
+        return $this->json($service->list($query));
     }
 }

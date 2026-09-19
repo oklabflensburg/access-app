@@ -4,21 +4,19 @@ declare(strict_types=1);
 
 namespace App\Service;
 
-use App\Entity\Media;
-use App\Entity\Observation;
-use Doctrine\DBAL\LockMode;
-use Doctrine\ORM\EntityManagerInterface;
+use App\Storage\PhotoFileStorage;
+use App\Store\MediaStore;
 use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\UnsupportedMediaTypeHttpException;
 
-final class PhotoStore
+final class PhotoService
 {
     public function __construct(
-        private readonly EntityManagerInterface $entityManager,
-        private readonly PhotoStorage $photoStorage,
+        private readonly MediaStore $store,
+        private readonly PhotoFileStorage $storage,
     ) {
     }
 
@@ -64,7 +62,7 @@ final class PhotoStore
         $wroteFile = false;
 
         try {
-            $this->entityManager->wrapInTransaction(function () use (
+            $this->store->transactional(function () use (
                 $observationId,
                 $photoId,
                 $revision,
@@ -77,13 +75,8 @@ final class PhotoStore
                 &$oldStorageKey,
                 &$wroteFile,
             ): void {
-                $this->entityManager->clear(Observation::class);
-                $this->entityManager->clear(Media::class);
-                $observation = $this->entityManager->find(
-                    Observation::class,
-                    $observationId,
-                    LockMode::PESSIMISTIC_WRITE,
-                );
+                $this->store->clear();
+                $observation = $this->store->findObservationForUpdate($observationId);
                 if (null === $observation || $observation->isDeleted()) {
                     throw new NotFoundHttpException('Observation not found.');
                 }
@@ -94,7 +87,7 @@ final class PhotoStore
                     throw new ConflictHttpException('Photo does not belong to the current revision.');
                 }
 
-                $media = $this->entityManager->find(Media::class, $photoId, LockMode::PESSIMISTIC_WRITE);
+                $media = $this->store->findMediaForUpdate($photoId);
                 if (null === $media || !$media->belongsTo($observationId)) {
                     throw new ConflictHttpException('Photo does not belong to the current revision.');
                 }
@@ -103,8 +96,8 @@ final class PhotoStore
                 }
 
                 $oldStorageKey = $media->getStorageKey();
-                if (!is_file($this->photoStorage->path($storageKey))) {
-                    $this->photoStorage->write($storageKey, $bytes);
+                if (!$this->storage->exists($storageKey)) {
+                    $this->storage->write($storageKey, $bytes);
                     $wroteFile = true;
                 }
                 $media->setUpload(
@@ -118,13 +111,13 @@ final class PhotoStore
             });
         } catch (\Throwable $error) {
             if ($wroteFile) {
-                $this->photoStorage->remove([$storageKey]);
+                $this->storage->remove([$storageKey]);
             }
             throw $error;
         }
 
         if (null !== $oldStorageKey && $oldStorageKey !== $storageKey) {
-            $this->photoStorage->remove([$oldStorageKey]);
+            $this->storage->remove([$oldStorageKey]);
         }
 
         return ['id' => $photoId];
@@ -134,17 +127,17 @@ final class PhotoStore
     {
         $this->assertUuid($observationId);
         $this->assertUuid($photoId);
-        $media = $this->entityManager->find(Media::class, $photoId);
+        $media = $this->store->findMedia($photoId);
         if (null === $media
             || !$media->belongsTo($observationId)
             || !$media->isUploaded()
             || $media->getObservation()->isDeleted()
             || null === $media->getStorageKey()
-            || !is_file($path = $this->photoStorage->path($media->getStorageKey()))) {
+            || !$this->storage->exists($media->getStorageKey())) {
             throw new NotFoundHttpException('Photo not found.');
         }
 
-        return $path;
+        return $this->storage->path($media->getStorageKey());
     }
 
     private function assertUuid(string $value): void
