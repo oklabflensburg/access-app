@@ -1,1 +1,11 @@
-reverse proxy auf server fertig einrichten
+
+
+add makefile for docker logs:
+docker compose \
+--env-file .env.local \
+-f compose.yaml \
+-f compose.prod.yaml \
+logs --tail=200 php
+
+
+docker startet nicht, anscheinend passwort problem mit postgres
