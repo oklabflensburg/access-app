@@ -7,10 +7,16 @@ import {
   database,
   getLocalMapFeatures,
   saveMapFeature,
+  updateMapFeatureProperties,
 } from "../services/storage";
 import type { Observation } from "../types/observation";
 import type { LocationData } from "../types/location";
-import type { MapFeature, PolygonGeometry } from "../types/map-feature";
+import {
+  mapFeatureTypes,
+  type MapFeature,
+  type MapFeatureType,
+  type PolygonGeometry,
+} from "../types/map-feature";
 import Map from "../components/Map.vue";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
@@ -28,6 +34,10 @@ const localFeatures = ref<MapFeature[]>([]);
 const featureNotice = ref("");
 const publicError = ref("");
 const publicBusy = ref(false);
+const selectedFeatureId = ref("");
+const featureName = ref("");
+const featureType = ref<MapFeatureType>("area");
+const featureSaving = ref(false);
 let featureSubscription: { unsubscribe(): void } | undefined;
 const markers = computed(() => {
   const localIds = new Set(observations.observations.map((o) => o.id));
@@ -47,6 +57,10 @@ const features = computed(() => {
     ...publicFeatures.value.filter((feature) => !localIds.has(feature.id)),
   ];
 });
+const selectedFeature = computed(() =>
+  features.value.find(({ id }) => id === selectedFeatureId.value),
+);
+const canEditSelectedFeature = computed(() => Boolean(selectedFeature.value?.editToken));
 function editObservation(id: string) {
   void router.push({ name: "edit-observation", params: { id } });
 }
@@ -82,10 +96,18 @@ async function loadPublic() {
     publicBusy.value = false;
   }
 }
-async function createFeature(geometry: PolygonGeometry) {
+async function createFeature({
+  geometry,
+  name,
+  type,
+}: {
+  geometry: PolygonGeometry;
+  name: string;
+  type: MapFeatureType;
+}) {
   featureNotice.value = "";
   try {
-    const feature = await saveMapFeature(geometry);
+    const feature = await saveMapFeature(geometry, name, type);
     localFeatures.value = await getLocalMapFeatures();
     if (navigator.onLine) {
       await sync.sync(true);
@@ -103,6 +125,44 @@ async function createFeature(geometry: PolygonGeometry) {
   } catch (cause) {
     publicError.value =
       cause instanceof Error ? cause.message : t("map.featureSaveError");
+  }
+}
+function selectFeature(id: string) {
+  const feature = features.value.find((candidate) => candidate.id === id);
+  if (!feature) return;
+  selectedFeatureId.value = id;
+  featureName.value = feature.name;
+  featureType.value = feature.type;
+}
+function closeFeature() {
+  selectedFeatureId.value = "";
+}
+async function updateFeature() {
+  if (!selectedFeature.value || !canEditSelectedFeature.value) return;
+  featureSaving.value = true;
+  featureNotice.value = "";
+  publicError.value = "";
+  try {
+    await updateMapFeatureProperties(
+      selectedFeature.value.id,
+      featureName.value,
+      featureType.value,
+    );
+    if (navigator.onLine) await sync.sync(true);
+    const stored = await database.mapFeatures.get(selectedFeature.value.id);
+    if (stored?.syncStatus === "failed") {
+      publicError.value = stored.lastError || t("map.featureUpdateError");
+      return;
+    }
+    featureNotice.value = stored?.syncStatus === "synced"
+      ? t("map.featureUpdated")
+      : t("map.featureUpdatedOffline");
+  } catch (cause) {
+    publicError.value = cause instanceof Error
+      ? cause.message
+      : t("map.featureUpdateError");
+  } finally {
+    featureSaving.value = false;
   }
 }
 onMounted(() => {
@@ -129,8 +189,40 @@ onBeforeUnmount(() => featureSubscription?.unsubscribe());
       :owned-observation-ids="ownedObservationIds"
       @select-observation="editObservation"
       @select-location="addObservationAt"
+      @select-feature="selectFeature"
       @create-feature="createFeature"
     />
+    <form
+      v-if="selectedFeature"
+      class="feature-panel"
+      :aria-label="t('map.featureDetails')"
+      @submit.prevent="updateFeature"
+    >
+      <div class="feature-panel-heading">
+        <strong>{{ t("map.featureDetails") }}</strong>
+        <button type="button" class="feature-panel-close" :aria-label="t('map.closeFeatureDetails')" @click="closeFeature">
+          <i class="pi pi-times" aria-hidden="true" />
+        </button>
+      </div>
+      <label for="selected-feature-name">{{ t("map.featureName") }}</label>
+      <input
+        id="selected-feature-name"
+        v-model="featureName"
+        type="text"
+        maxlength="120"
+        :readonly="!canEditSelectedFeature"
+      />
+      <label for="selected-feature-type">{{ t("map.featureType") }}</label>
+      <select id="selected-feature-type" v-model="featureType" :disabled="!canEditSelectedFeature">
+        <option v-for="type in mapFeatureTypes" :key="type" :value="type">
+          {{ t(`map.featureTypes.${type}`) }}
+        </option>
+      </select>
+      <p v-if="!canEditSelectedFeature" class="feature-readonly">{{ t("map.featureReadOnly") }}</p>
+      <button v-else type="submit" class="primary" :disabled="featureSaving">
+        {{ featureSaving ? t("map.featureUpdating") : t("map.updateFeature") }}
+      </button>
+    </form>
     <div class="map-status" aria-live="polite">
       <Message v-if="location.error" severity="error" role="alert">{{ location.error }}</Message>
       <Message v-else-if="publicError || observations.error" severity="error" role="alert">

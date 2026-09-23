@@ -249,6 +249,20 @@ main {
   min-height: 44px;
   padding: 8px 12px;
 }
+.drawing-field {
+  display: grid;
+  flex: 1 1 210px;
+  gap: 4px;
+}
+.drawing-field label {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.drawing-field input,
+.drawing-field select {
+  min-height: 44px;
+  width: 100%;
+}
 .drawing-instruction {
   flex-basis: 100%;
   margin: 0;
@@ -617,6 +631,51 @@ input::file-selector-button {
 }
 .map-status .p-message {
   margin: 0;
+}
+.feature-panel {
+  position: fixed;
+  z-index: 800;
+  top: 76px;
+  right: 12px;
+  display: grid;
+  gap: 8px;
+  width: min(360px, calc(100% - 24px));
+  padding: 16px;
+  border: 1px solid #dce4dc;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px #203c3433;
+}
+.feature-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.feature-panel-close {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #203c34;
+}
+.feature-panel label {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.feature-panel input,
+.feature-panel select {
+  width: 100%;
+  min-height: 44px;
+}
+.feature-panel .primary {
+  margin-top: 4px;
+}
+.feature-readonly {
+  margin: 4px 0 0;
+  color: #52655d;
+  font-size: 0.85rem;
 }
 #main:not(.map-main) {
   max-width: 720px;

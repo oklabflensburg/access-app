@@ -62,6 +62,16 @@ final class MapFeatureRepository
             SQL, ['id' => $id, 'geometry' => $geometry]);
     }
 
+    public function updateProperties(string $id, string $type, string $name): int
+    {
+        return $this->connection->executeStatement(<<<'SQL'
+            UPDATE map_features feature
+            SET type_id = type.id, name = NULLIF(:name, ''), updated_at = NOW()
+            FROM map_feature_types type
+            WHERE feature.id = :id AND type.code = :type
+            SQL, ['id' => $id, 'type' => $type, 'name' => $name]);
+    }
+
     /** @return list<array<string, mixed>> */
     public function findActive(int $limit): array
     {

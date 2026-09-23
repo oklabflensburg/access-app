@@ -20,13 +20,14 @@ Stop the backend without removing saved data using `(cd backend && docker compos
 ## Using the app
 
 1. On the map, choose **Use my location**, or **Add accessibility information** to capture a fresh position.
-2. To contribute an area, choose **Draw area**, place at least three vertices, and select **Close and save**. The polygon is stored locally first and synchronized to the public map with the normal sync queue.
-3. Answer the questionnaire. Unknown answers remain explicit; `3` steps means **3 or more**.
-4. Optionally add up to six photos, a 10-second relative noise measurement, a 10-second raw motion recording, or a 5-second ambient-light measurement.
-5. **Save observation on this device** makes it ready for sharing. **Save draft** keeps it out of the sync queue.
-6. In **My observations**, edit or delete local records. Deleting removes local photos and measurements immediately and queues public deletion.
-7. **Share & sync now** publishes all ready observations, polygons, and pending deletions. Automatic sharing is off by default; enabling it retries queued changes while the app is open.
-8. The map fetches up to 200 public observations and 200 public polygon features. Locally stored records take precedence.
+2. To contribute an area, choose **Draw area**, place at least three vertices, enter an optional name, select its feature type, and choose **Close and save**. The polygon and its metadata are stored locally first and synchronized to the public map with the normal sync queue.
+3. Select a polygon to inspect its name and type. Features created on the current device can be edited and re-synchronized; other public features are read-only.
+4. Answer the questionnaire. Unknown answers remain explicit; `3` steps means **3 or more**.
+5. Optionally add up to six photos, a 10-second relative noise measurement, a 10-second raw motion recording, or a 5-second ambient-light measurement.
+6. **Save observation on this device** makes it ready for sharing. **Save draft** keeps it out of the sync queue.
+7. In **My observations**, edit or delete local records. Deleting removes local photos and measurements immediately and queues public deletion.
+8. **Share & sync now** publishes all ready observations, polygons, and pending deletions. Automatic sharing is off by default; enabling it retries queued changes while the app is open.
+9. The map fetches up to 200 public observations and 200 public polygon features. Locally stored records take precedence.
 
 ## Offline PWA
 
@@ -124,7 +125,7 @@ Collection responses are `{ observations, nextCursor }`, ordered by descending U
 
 Payloads include `id` (UUID v4), `revision`, `createdAt`, `location`, `accessibility`, `comment`, `photoIds`, and optional `noise`, `motion`, and `light`. See the shared TypeScript types and API integration tests for examples. Invalid input, conflicting revisions, unauthorized edits, oversized uploads, and missing records return JSON errors with appropriate HTTP status codes.
 
-Map-feature creation accepts a UUID, creation time, the `area` type, an optional name, and GeoJSON `Polygon` geometry. Rings must be explicitly closed, contain 3–500 vertices, use longitude/latitude coordinates, and form a valid non-self-intersecting area. The edit token is sent only in the Authorization header and makes offline retries idempotent.
+Map-feature creation accepts a UUID, creation time, a type (`area`, `building`, `entrance`, `staircase`, `ramp`, `toilet`, `elevator`, or `path`), an optional name, and GeoJSON `Polygon` geometry. Rings must be explicitly closed, contain 3–500 vertices, use longitude/latitude coordinates, and form a valid non-self-intersecting area. The edit token is sent only in the Authorization header and makes offline retries idempotent.
 
 ## Verification
 

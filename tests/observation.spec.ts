@@ -27,6 +27,8 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   await page.mouse.click(bounds.x + 180, bounds.y + 160);
   await page.mouse.click(bounds.x + 300, bounds.y + 160);
   await page.mouse.click(bounds.x + 240, bounds.y + 260);
+  await page.getByLabel("Name").fill("Nordrampe");
+  await page.getByLabel("Typ").selectOption("ramp");
   const requestPromise = page.waitForRequest(
     (request) =>
       request.url().endsWith("/api/map-features") &&
@@ -37,11 +39,30 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
 
   await expect(page.getByText("Fläche wurde dauerhaft gespeichert.")).toBeVisible();
   expect(saved?.geometry.type).toBe("Polygon");
+  expect(saved?.name).toBe("Nordrampe");
+  expect(saved?.type).toBe("ramp");
   expect(saved?.geometry.coordinates[0]).toHaveLength(4);
   expect(saved?.geometry.coordinates[0][0]).toEqual(
     saved?.geometry.coordinates[0][3],
   );
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(1);
+  await page.locator(".leaflet-overlay-pane path").click({ force: true });
+  const details = page.getByRole("form", { name: "Flächendetails" });
+  await expect(details.getByLabel("Name")).toHaveValue("Nordrampe");
+  await expect(details.getByLabel("Typ")).toHaveValue("ramp");
+  await details.getByLabel("Name").fill("Nordeingang");
+  await details.getByLabel("Typ").selectOption("entrance");
+  const updateRequest = page.waitForRequest(
+    (request) =>
+      request.url().endsWith("/api/map-features") &&
+      request.method() === "POST" &&
+      request.postDataJSON().name === "Nordeingang",
+  );
+  await details.getByRole("button", { name: "Änderungen speichern" }).click();
+  const updated = (await updateRequest).postDataJSON();
+  expect(updated?.name).toBe("Nordeingang");
+  expect(updated?.type).toBe("entrance");
+  await expect(page.getByText("Die Flächendetails wurden aktualisiert.")).toBeVisible();
 
   const local = await page.evaluate(async () => {
     const request = indexedDB.open("accessapp");
@@ -56,6 +77,8 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   });
   expect(local).toHaveLength(1);
   expect(local[0].syncStatus).toBe("synced");
+  expect(local[0].name).toBe("Nordeingang");
+  expect(local[0].type).toBe("entrance");
 });
 
 test("opens a new observation at a long-pressed map point", async ({ page }) => {

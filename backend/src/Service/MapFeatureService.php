@@ -47,9 +47,14 @@ final class MapFeatureService
                 || !hash_equals($current['edit_token_hash'], $tokenHash)) {
                 throw new AccessDeniedHttpException('Edit token does not match this map feature.');
             }
-            if ($current['type'] !== $input->type || $current['name'] !== $input->name
-                || !$current['same_geometry']) {
+            if (!$current['same_geometry']) {
                 throw new ConflictHttpException('A different map feature already uses this id.');
+            }
+            if ($current['type'] !== $input->type || $current['name'] !== $input->name) {
+                $updated = $this->features->updateProperties($input->id, $input->type, $input->name);
+                if (1 !== $updated) {
+                    throw new BadRequestHttpException('Unknown map feature type.');
+                }
             }
         });
 

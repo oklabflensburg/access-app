@@ -3,7 +3,12 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import L from "leaflet";
 import type { LocationData } from "../types/location";
 import type { Observation } from "../types/observation";
-import type { MapFeature, PolygonGeometry } from "../types/map-feature";
+import {
+  mapFeatureTypes,
+  type MapFeature,
+  type MapFeatureType,
+  type PolygonGeometry,
+} from "../types/map-feature";
 import { useI18n } from "vue-i18n";
 import { useMapStore } from "../stores/map";
 
@@ -16,7 +21,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectObservation: [id: string];
   selectLocation: [location: LocationData];
-  createFeature: [geometry: PolygonGeometry];
+  selectFeature: [id: string];
+  createFeature: [feature: { geometry: PolygonGeometry; name: string; type: MapFeatureType }];
 }>();
 const { t } = useI18n();
 const mapStore = useMapStore();
@@ -25,6 +31,8 @@ const tileError = ref(false);
 const drawing = ref(false);
 const vertices = ref<L.LatLng[]>([]);
 const drawingError = ref("");
+const featureName = ref("");
+const featureType = ref<MapFeatureType>("area");
 const longPressDelay = 700;
 let map: L.Map | undefined;
 let observationLayer: L.LayerGroup;
@@ -99,6 +107,8 @@ function startDrawing() {
   drawing.value = true;
   vertices.value = [];
   drawingError.value = "";
+  featureName.value = "";
+  featureType.value = "area";
   renderDrawing();
 }
 
@@ -125,7 +135,11 @@ function finishDrawing() {
     drawingError.value = t("map.invalidPolygon");
     return;
   }
-  emit("createFeature", { type: "Polygon", coordinates: [ring] });
+  emit("createFeature", {
+    geometry: { type: "Polygon", coordinates: [ring] },
+    name: featureName.value.trim(),
+    type: featureType.value,
+  });
   cancelDrawing();
 }
 
@@ -249,13 +263,14 @@ function drawFeatures() {
       fillColor: "#56a784",
       fillOpacity: 0.22,
     }).addTo(featureLayer);
-    polygon.bindTooltip(
-      feature.syncStatus === "failed"
-        ? t("map.featureFailed")
-        : feature.syncStatus && feature.syncStatus !== "synced"
-          ? t("map.featurePending")
-          : t("map.area"),
-    );
+    const label = feature.name || t(`map.featureTypes.${feature.type}`);
+    const syncLabel = feature.syncStatus === "failed"
+      ? t("map.featureFailed")
+      : feature.syncStatus && feature.syncStatus !== "synced"
+        ? t("map.featurePending")
+        : "";
+    polygon.bindTooltip(syncLabel ? `${label} · ${syncLabel}` : label);
+    polygon.on("click", () => emit("selectFeature", feature.id));
   });
   if (!props.location && !props.observations.length && props.features.length) {
     map?.fitBounds(
@@ -323,6 +338,24 @@ onBeforeUnmount(() => {
         {{ t("map.drawHelp", { count: vertices.length }) }}
       </p>
       <p v-if="drawingError" class="drawing-error" role="alert">{{ drawingError }}</p>
+      <div class="drawing-field">
+        <label for="feature-name">{{ t("map.featureName") }}</label>
+        <input
+          id="feature-name"
+          v-model="featureName"
+          type="text"
+          maxlength="120"
+          :placeholder="t('map.featureNamePlaceholder')"
+        />
+      </div>
+      <div class="drawing-field">
+        <label for="feature-type">{{ t("map.featureType") }}</label>
+        <select id="feature-type" v-model="featureType">
+          <option v-for="type in mapFeatureTypes" :key="type" :value="type">
+            {{ t(`map.featureTypes.${type}`) }}
+          </option>
+        </select>
+      </div>
       <button type="button" class="secondary" :disabled="!vertices.length" @click="undoVertex">
         {{ t("map.undoPoint") }}
       </button>

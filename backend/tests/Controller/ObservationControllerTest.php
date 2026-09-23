@@ -16,8 +16,8 @@ final class ObservationControllerTest extends WebTestCase
         $headers = ['HTTP_AUTHORIZATION' => 'Bearer '.$token];
         $payload = [
             'id' => $id,
-            'type' => 'area',
-            'name' => '',
+            'type' => 'ramp',
+            'name' => 'North ramp',
             'createdAt' => '2026-09-17T10:00:00.000Z',
             'geometry' => [
                 'type' => 'Polygon',
@@ -32,10 +32,18 @@ final class ObservationControllerTest extends WebTestCase
         $client->jsonRequest('POST', '/api/map-features', $payload, $headers);
         self::assertResponseIsSuccessful();
 
+        $payload['type'] = 'entrance';
+        $payload['name'] = 'North entrance';
+        $client->jsonRequest('POST', '/api/map-features', $payload, $headers);
+        self::assertResponseIsSuccessful();
+
         $client->request('GET', '/api/map-features?limit=200');
         self::assertResponseIsSuccessful();
         $features = $this->responseData($client)['features'];
         self::assertContains($id, array_column($features, 'id'));
+        $feature = $features[array_search($id, array_column($features, 'id'), true)];
+        self::assertSame('entrance', $feature['type']);
+        self::assertSame('North entrance', $feature['name']);
 
         $client->jsonRequest('POST', '/api/map-features', $payload, [
             'HTTP_AUTHORIZATION' => 'Bearer '.$this->uuid(),
