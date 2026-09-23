@@ -16,12 +16,17 @@ final class ObservationControllerTest extends WebTestCase
         $headers = ['HTTP_AUTHORIZATION' => 'Bearer '.$token];
         $payload = [
             'id' => $id,
-            'type' => 'area',
-            'name' => '',
+            'type' => 'ramp',
+            'name' => 'North ramp',
             'createdAt' => '2026-09-17T10:00:00.000Z',
             'geometry' => [
                 'type' => 'Polygon',
-                'coordinates' => [[[13.4, 52.5], [13.41, 52.5], [13.405, 52.51], [13.4, 52.5]]],
+                'coordinates' => [[
+                    [13.400123456789, 52.500123456789],
+                    [13.410123456789, 52.500123456789],
+                    [13.405123456789, 52.510123456789],
+                    [13.400123456789, 52.500123456789],
+                ]],
             ],
         ];
 
@@ -32,15 +37,36 @@ final class ObservationControllerTest extends WebTestCase
         $client->jsonRequest('POST', '/api/map-features', $payload, $headers);
         self::assertResponseIsSuccessful();
 
+        $payload['type'] = 'entrance';
+        $payload['name'] = 'North entrance';
+        $client->jsonRequest('POST', '/api/map-features', $payload, $headers);
+        self::assertResponseIsSuccessful();
+
         $client->request('GET', '/api/map-features?limit=200');
         self::assertResponseIsSuccessful();
         $features = $this->responseData($client)['features'];
         self::assertContains($id, array_column($features, 'id'));
+        $feature = $features[array_search($id, array_column($features, 'id'), true)];
+        self::assertSame('entrance', $feature['type']);
+        self::assertSame('North entrance', $feature['name']);
 
         $client->jsonRequest('POST', '/api/map-features', $payload, [
             'HTTP_AUTHORIZATION' => 'Bearer '.$this->uuid(),
         ]);
         self::assertResponseStatusCodeSame(403);
+
+        $client->request('DELETE', '/api/map-features/'.$id, server: $headers);
+        self::assertResponseIsSuccessful();
+        self::assertSame(['id' => $id], $this->responseData($client));
+
+        $client->request('DELETE', '/api/map-features/'.$id, server: $headers);
+        self::assertResponseIsSuccessful();
+
+        $client->request('GET', '/api/map-features?limit=200');
+        self::assertNotContains($id, array_column($this->responseData($client)['features'], 'id'));
+
+        $client->jsonRequest('POST', '/api/map-features', $payload, $headers);
+        self::assertResponseStatusCodeSame(410);
 
         static::getContainer()->get('doctrine.dbal.default_connection')
             ->executeStatement('DELETE FROM map_features WHERE id = :id', ['id' => $id]);

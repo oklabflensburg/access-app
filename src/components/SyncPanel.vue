@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from "vue";
+import { computed, onBeforeUnmount, ref } from "vue";
 import { liveQuery } from "dexie";
 import { database } from "../services/storage";
 import { useSyncStore } from "../stores/sync";
 import { useI18n } from "vue-i18n";
-import Button from "primevue/button";
-import Card from "primevue/card";
-import Checkbox from "primevue/checkbox";
 const sync = useSyncStore();
 const { t } = useI18n();
 const pending = ref(0);
+const canSync = computed(
+  () => pending.value > 0 && sync.online && !sync.busy,
+);
 const subscription = liveQuery(() =>
   Promise.all([
     database.observations
@@ -30,29 +30,23 @@ const subscription = liveQuery(() =>
   },
 });
 onBeforeUnmount(() => subscription.unsubscribe());
+
+function synchronize() {
+  if (!canSync.value) return;
+  void sync.sync(true);
+}
 </script>
 <template>
-  <Card class="sync-panel" aria-labelledby="sync-heading">
-    <template #title><h2 id="sync-heading">{{ t("sync.title") }}</h2></template>
-    <template #content>
-    <p>
-      {{ sync.online ? t("sync.online") : t("sync.offline") }} · {{ t("sync.queued", { count: pending }) }}
-    </p>
-    <Button
-      :disabled="sync.busy || !sync.online"
-      @click="sync.sync(true)"
-      :loading="sync.busy"
-      :label="sync.busy ? t('sync.syncing') : t('sync.share')"
-    />
-    <label class="auto-sync"
-      ><Checkbox
-        :model-value="sync.automatic"
-        binary
-        @update:model-value="sync.setAutomatic"
-      />
-      {{ t("sync.automatic") }}</label
+  <div class="sync-panel">
+    <button
+      type="button"
+      class="menu-action"
+      :disabled="!canSync"
+      @click="synchronize"
     >
-    <p v-if="sync.message" role="status">{{ sync.message }}</p>
-    </template>
-  </Card>
+      <i :class="sync.busy ? 'pi pi-spin pi-spinner' : 'pi pi-refresh'" aria-hidden="true" />
+      <span>{{ sync.busy ? t("sync.syncing") : t("sync.action") }}</span>
+      <span class="sync-count">{{ t("sync.queued", { count: pending }) }}</span>
+    </button>
+  </div>
 </template>

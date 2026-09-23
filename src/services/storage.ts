@@ -1,7 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
-import type { MapFeature } from "../types/map-feature";
+import { mapFeatureTypes, type MapFeature, type MapFeatureType } from "../types/map-feature";
 import { t } from "../i18n";
 
 class ObservationDatabase extends Dexie {
@@ -24,6 +24,8 @@ export const database = new ObservationDatabase();
 
 export async function saveMapFeature(
   geometry: MapFeature["geometry"],
+  name: string,
+  type: MapFeatureType,
 ): Promise<MapFeature> {
   const ring = geometry.coordinates[0];
   if (
@@ -43,8 +45,8 @@ export async function saveMapFeature(
   }
   const feature: MapFeature = {
     id: crypto.randomUUID(),
-    type: "area",
-    name: "",
+    type,
+    name: name.trim(),
     geometry,
     createdAt: new Date().toISOString(),
     syncStatus: "ready",
@@ -52,13 +54,65 @@ export async function saveMapFeature(
     attempts: 0,
     nextRetryAt: 0,
     lastError: "",
+    remoteSynced: false,
   };
   await database.mapFeatures.add(feature);
   return feature;
 }
 
 export function getLocalMapFeatures(): Promise<MapFeature[]> {
-  return database.mapFeatures.orderBy("createdAt").reverse().toArray();
+  return database.mapFeatures
+    .orderBy("createdAt")
+    .reverse()
+    .filter((feature) => !feature.deleted)
+    .toArray();
+}
+
+export async function updateMapFeatureProperties(
+  id: string,
+  name: string,
+  type: MapFeatureType,
+): Promise<MapFeature> {
+  const feature = await database.mapFeatures.get(id);
+  if (!feature?.editToken)
+    throw new Error(t("errors.featureNotEditable"));
+  const trimmedName = name.trim();
+  if (trimmedName.length > 120 || !mapFeatureTypes.includes(type))
+    throw new Error(t("errors.invalidFeatureProperties"));
+  const updated: MapFeature = {
+    ...feature,
+    name: trimmedName,
+    type,
+    syncStatus: "ready",
+    attempts: 0,
+    nextRetryAt: 0,
+    lastError: "",
+    remoteSynced: feature.remoteSynced ?? feature.syncStatus === "synced",
+  };
+  await database.mapFeatures.put(updated);
+  return updated;
+}
+
+export async function deleteMapFeature(id: string): Promise<void> {
+  const feature = await database.mapFeatures.get(id);
+  if (!feature) return;
+  if (!feature.editToken)
+    throw new Error(t("errors.featureNotEditable"));
+
+  const wasUploaded = feature.remoteSynced
+    ?? (feature.syncStatus === "synced" || (feature.attempts ?? 0) > 0);
+  if (!wasUploaded && feature.syncStatus === "ready") {
+    await database.mapFeatures.delete(id);
+    return;
+  }
+
+  await database.mapFeatures.update(id, {
+    deleted: true,
+    syncStatus: "ready",
+    attempts: 0,
+    nextRetryAt: 0,
+    lastError: "",
+  });
 }
 
 export async function saveObservation(

@@ -38,4 +38,14 @@ final class MapFeatureController extends AbstractController
     ): JsonResponse {
         return $this->json($service->list($query));
     }
+
+    #[Route('/{id}', name: 'api_map_features_delete', methods: ['DELETE'], format: 'json')]
+    public function delete(
+        string $id,
+        Request $request,
+        EditToken $editToken,
+        MapFeatureService $service,
+    ): JsonResponse {
+        return $this->json($service->delete($id, $editToken->hashFrom($request)));
+    }
 }

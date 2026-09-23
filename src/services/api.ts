@@ -90,6 +90,15 @@ export function uploadMapFeature(feature: MapFeature) {
   });
 }
 
+export function removeRemoteMapFeature(feature: MapFeature) {
+  return request<{ id: string }>(`/map-features/${feature.id}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${feature.editToken}`,
+    },
+  });
+}
+
 export function getPublicMapFeatures() {
   return request<{ features: MapFeature[] }>("/map-features?limit=200");
 }

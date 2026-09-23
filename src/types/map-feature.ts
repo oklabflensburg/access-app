@@ -5,9 +5,22 @@ export interface PolygonGeometry {
   coordinates: [PolygonPosition[]];
 }
 
+export const mapFeatureTypes = [
+  "area",
+  "building",
+  "entrance",
+  "staircase",
+  "ramp",
+  "toilet",
+  "elevator",
+  "path",
+] as const;
+
+export type MapFeatureType = (typeof mapFeatureTypes)[number];
+
 export interface MapFeature {
   id: string;
-  type: "area";
+  type: MapFeatureType;
   name: string;
   geometry: PolygonGeometry;
   createdAt: string;
@@ -16,4 +29,6 @@ export interface MapFeature {
   lastError?: string;
   attempts?: number;
   nextRetryAt?: number;
+  deleted?: boolean;
+  remoteSynced?: boolean;
 }
