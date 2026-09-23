@@ -8,12 +8,20 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("draws a polygon and queues it for permanent storage", async ({ page }) => {
+  let postRequests = 0;
   await page.route("**/api/map-features*", async (route) => {
     if (route.request().method() === "GET") {
       await route.fulfill({ json: { features: [] } });
       return;
     }
+    if (route.request().method() === "DELETE") {
+      await route.fulfill({
+        json: { id: route.request().url().split("/").at(-1) },
+      });
+      return;
+    }
     const payload = route.request().postDataJSON();
+    postRequests++;
     expect(route.request().headers().authorization).toMatch(/^Bearer /);
     await route.fulfill({ json: { id: payload.id } });
   });
@@ -29,22 +37,12 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   await page.mouse.click(bounds.x + 240, bounds.y + 260);
   await page.getByLabel("Name").fill("Nordrampe");
   await page.getByLabel("Typ").selectOption("ramp");
-  const requestPromise = page.waitForRequest(
-    (request) =>
-      request.url().endsWith("/api/map-features") &&
-      request.method() === "POST",
-  );
   await page.getByRole("button", { name: "Schließen und speichern" }).click();
-  const saved = (await requestPromise).postDataJSON();
 
-  await expect(page.getByText("Fläche wurde dauerhaft gespeichert.")).toBeVisible();
-  expect(saved?.geometry.type).toBe("Polygon");
-  expect(saved?.name).toBe("Nordrampe");
-  expect(saved?.type).toBe("ramp");
-  expect(saved?.geometry.coordinates[0]).toHaveLength(4);
-  expect(saved?.geometry.coordinates[0][0]).toEqual(
-    saved?.geometry.coordinates[0][3],
-  );
+  await expect(
+    page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
+  ).toBeVisible();
+  expect(postRequests).toBe(0);
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(1);
   await page.locator(".leaflet-overlay-pane path").click({ force: true });
   const details = page.getByRole("form", { name: "Flächendetails" });
@@ -52,17 +50,31 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   await expect(details.getByLabel("Typ")).toHaveValue("ramp");
   await details.getByLabel("Name").fill("Nordeingang");
   await details.getByLabel("Typ").selectOption("entrance");
-  const updateRequest = page.waitForRequest(
+  await details.getByRole("button", { name: "Änderungen speichern" }).click();
+  await expect(
+    page.getByText(
+      "Die Änderungen wurden lokal gespeichert und werden später synchronisiert.",
+    ),
+  ).toBeVisible();
+  expect(postRequests).toBe(0);
+
+  const syncRequest = page.waitForRequest(
     (request) =>
       request.url().endsWith("/api/map-features") &&
       request.method() === "POST" &&
       request.postDataJSON().name === "Nordeingang",
   );
-  await details.getByRole("button", { name: "Änderungen speichern" }).click();
-  const updated = (await updateRequest).postDataJSON();
-  expect(updated?.name).toBe("Nordeingang");
-  expect(updated?.type).toBe("entrance");
-  await expect(page.getByText("Die Flächendetails wurden aktualisiert.")).toBeVisible();
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Jetzt synchronisieren" }).click();
+  const saved = (await syncRequest).postDataJSON();
+  expect(saved?.geometry.type).toBe("Polygon");
+  expect(saved?.name).toBe("Nordeingang");
+  expect(saved?.type).toBe("entrance");
+  expect(saved?.geometry.coordinates[0]).toHaveLength(4);
+  expect(saved?.geometry.coordinates[0][0]).toEqual(
+    saved?.geometry.coordinates[0][3],
+  );
+  await expect.poll(() => postRequests).toBe(1);
 
   const local = await page.evaluate(async () => {
     const request = indexedDB.open("accessapp");
@@ -79,6 +91,31 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   expect(local[0].syncStatus).toBe("synced");
   expect(local[0].name).toBe("Nordeingang");
   expect(local[0].type).toBe("entrance");
+
+  await page.getByRole("link", { name: "Meine Kartenobjekte" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Meine Kartenobjekte" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Nordeingang" })).toBeVisible();
+  await page.getByRole("button", { name: "Kartenobjekt bearbeiten" }).click();
+  await page.getByLabel("Name").fill("Nordrampe barrierefrei");
+  await page.getByLabel("Typ").selectOption("ramp");
+  await page.getByRole("button", { name: "Änderungen speichern" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Nordrampe barrierefrei" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Kartenobjekt löschen" }).click();
+  await page.getByRole("button", { name: "Löschen bestätigen" }).click();
+  await expect(page.getByText("Noch keine Kartenobjekte.")).toBeVisible();
+
+  const deleteRequest = page.waitForRequest(
+    (request) =>
+      request.method() === "DELETE" &&
+      request.url().includes(`/api/map-features/${saved.id}`),
+  );
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Jetzt synchronisieren" }).click();
+  await deleteRequest;
 });
 
 test("opens a new observation at a long-pressed map point", async ({ page }) => {

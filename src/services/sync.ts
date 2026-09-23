@@ -1,6 +1,7 @@
 import { database } from "./storage";
 import {
   removeRemoteObservation,
+  removeRemoteMapFeature,
   uploadMapFeature,
   uploadObservation,
   uploadPhoto,
@@ -91,7 +92,9 @@ async function runQueue(force: boolean) {
         syncStatus: "syncing",
         lastError: "",
       });
-      const ack = await uploadMapFeature(feature);
+      const ack = feature.deleted
+        ? await removeRemoteMapFeature(feature)
+        : await uploadMapFeature(feature);
       if (ack.id !== feature.id)
         throw new Error(t("errors.areaAcknowledgement"));
       await database.mapFeatures.update(feature.id, {
@@ -99,6 +102,7 @@ async function runQueue(force: boolean) {
         attempts: 0,
         nextRetryAt: 0,
         lastError: "",
+        remoteSynced: true,
       });
       result.synced++;
     } catch (cause) {

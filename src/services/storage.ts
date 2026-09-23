@@ -54,13 +54,18 @@ export async function saveMapFeature(
     attempts: 0,
     nextRetryAt: 0,
     lastError: "",
+    remoteSynced: false,
   };
   await database.mapFeatures.add(feature);
   return feature;
 }
 
 export function getLocalMapFeatures(): Promise<MapFeature[]> {
-  return database.mapFeatures.orderBy("createdAt").reverse().toArray();
+  return database.mapFeatures
+    .orderBy("createdAt")
+    .reverse()
+    .filter((feature) => !feature.deleted)
+    .toArray();
 }
 
 export async function updateMapFeatureProperties(
@@ -82,9 +87,32 @@ export async function updateMapFeatureProperties(
     attempts: 0,
     nextRetryAt: 0,
     lastError: "",
+    remoteSynced: feature.remoteSynced ?? feature.syncStatus === "synced",
   };
   await database.mapFeatures.put(updated);
   return updated;
+}
+
+export async function deleteMapFeature(id: string): Promise<void> {
+  const feature = await database.mapFeatures.get(id);
+  if (!feature) return;
+  if (!feature.editToken)
+    throw new Error(t("errors.featureNotEditable"));
+
+  const wasUploaded = feature.remoteSynced
+    ?? (feature.syncStatus === "synced" || (feature.attempts ?? 0) > 0);
+  if (!wasUploaded && feature.syncStatus === "ready") {
+    await database.mapFeatures.delete(id);
+    return;
+  }
+
+  await database.mapFeatures.update(id, {
+    deleted: true,
+    syncStatus: "ready",
+    attempts: 0,
+    nextRetryAt: 0,
+    lastError: "",
+  });
 }
 
 export async function saveObservation(

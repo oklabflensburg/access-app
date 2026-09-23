@@ -464,6 +464,18 @@ nav a {
   gap: 12px;
   margin: 16px 0;
 }
+.feature-edit-form {
+  display: grid;
+  gap: 8px;
+}
+.feature-edit-form label {
+  font-weight: 700;
+}
+.feature-edit-form input,
+.feature-edit-form select {
+  width: 100%;
+  min-height: 48px;
+}
 .sync-panel,
 .pwa-status {
   margin-bottom: 24px;

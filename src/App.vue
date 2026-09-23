@@ -48,6 +48,9 @@ onBeforeUnmount(() => stop?.());
       <RouterLink to="/observations" @click="menuOpen = false">
         <i class="pi pi-list" aria-hidden="true" /> {{ t("app.observations") }}
       </RouterLink>
+      <RouterLink to="/map-features" @click="menuOpen = false">
+        <i class="pi pi-map-marker" aria-hidden="true" /> {{ t("app.mapFeatures") }}
+      </RouterLink>
       <button
         v-if="route.name === 'map'"
         type="button"

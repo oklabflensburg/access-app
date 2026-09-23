@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import MapView from "./views/MapView.vue";
 import NewObservationView from "./views/NewObservationView.vue";
 import MyObservationsView from "./views/MyObservationsView.vue";
+import MyMapFeaturesView from "./views/MyMapFeaturesView.vue";
 
 export default createRouter({
   history: createWebHistory(),
@@ -25,6 +26,11 @@ export default createRouter({
       path: "/observations",
       name: "my-observations",
       component: MyObservationsView,
+    },
+    {
+      path: "/map-features",
+      name: "my-map-features",
+      component: MyMapFeaturesView,
     },
   ],
 });

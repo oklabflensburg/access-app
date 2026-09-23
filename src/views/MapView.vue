@@ -22,12 +22,10 @@ import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
 import { useI18n } from "vue-i18n";
 import Message from "primevue/message";
-import { useSyncStore } from "../stores/sync";
 const location = useLocationStore();
 const observations = useObservationStore();
 const { t } = useI18n();
 const router = useRouter();
-const sync = useSyncStore();
 const publicObservations = ref<Observation[]>([]);
 const publicFeatures = ref<MapFeature[]>([]);
 const localFeatures = ref<MapFeature[]>([]);
@@ -81,13 +79,18 @@ async function loadPublic() {
       getPublicObservations(),
       getPublicMapFeatures(),
     ]);
-    const localIds = new Set(
-      await database.observations.toCollection().primaryKeys(),
-    );
+    const [observationKeys, featureKeys] = await Promise.all([
+      database.observations.toCollection().primaryKeys(),
+      database.mapFeatures.toCollection().primaryKeys(),
+    ]);
+    const localIds = new Set(observationKeys);
+    const localFeatureIds = new Set(featureKeys);
     publicObservations.value = result.observations.filter(
       (o) => !localIds.has(o.id),
     );
-    publicFeatures.value = featureResult.features;
+    publicFeatures.value = featureResult.features.filter(
+      (feature) => !localFeatureIds.has(feature.id),
+    );
     if (result.nextCursor)
       publicError.value = t("map.publicLimit");
   } catch {
@@ -107,21 +110,9 @@ async function createFeature({
 }) {
   featureNotice.value = "";
   try {
-    const feature = await saveMapFeature(geometry, name, type);
+    await saveMapFeature(geometry, name, type);
     localFeatures.value = await getLocalMapFeatures();
-    if (navigator.onLine) {
-      await sync.sync(true);
-      localFeatures.value = await getLocalMapFeatures();
-    }
-    const stored = localFeatures.value.find(({ id }) => id === feature.id);
-    if (stored?.syncStatus === "failed") {
-      publicError.value = stored.lastError || t("map.featureSaveError");
-      return;
-    }
-    featureNotice.value =
-      stored?.syncStatus === "synced"
-        ? t("map.featureSaved")
-        : t("map.featureSavedOffline");
+    featureNotice.value = t("map.featureSavedOffline");
   } catch (cause) {
     publicError.value =
       cause instanceof Error ? cause.message : t("map.featureSaveError");
@@ -148,15 +139,7 @@ async function updateFeature() {
       featureName.value,
       featureType.value,
     );
-    if (navigator.onLine) await sync.sync(true);
-    const stored = await database.mapFeatures.get(selectedFeature.value.id);
-    if (stored?.syncStatus === "failed") {
-      publicError.value = stored.lastError || t("map.featureUpdateError");
-      return;
-    }
-    featureNotice.value = stored?.syncStatus === "synced"
-      ? t("map.featureUpdated")
-      : t("map.featureUpdatedOffline");
+    featureNotice.value = t("map.featureUpdatedOffline");
   } catch (cause) {
     publicError.value = cause instanceof Error
       ? cause.message

@@ -21,7 +21,7 @@ Stop the backend without removing saved data using `(cd backend && docker compos
 
 1. On the map, choose **Use my location**, or **Add accessibility information** to capture a fresh position.
 2. To contribute an area, choose **Draw area**, place at least three vertices, enter an optional name, select its feature type, and choose **Close and save**. The polygon and its metadata are stored locally first and synchronized to the public map with the normal sync queue.
-3. Select a polygon to inspect its name and type. Features created on the current device can be edited and re-synchronized; other public features are read-only.
+3. Select a polygon to inspect its name and type. Features created on the current device can be edited and re-synchronized; other public features are read-only. **My map features** lists the polygons owned by this device and allows editing or confirmed deletion.
 4. Answer the questionnaire. Unknown answers remain explicit; `3` steps means **3 or more**.
 5. Optionally add up to six photos, a 10-second relative noise measurement, a 10-second raw motion recording, or a 5-second ambient-light measurement.
 6. **Save observation on this device** makes it ready for sharing. **Save draft** keeps it out of the sync queue.
@@ -120,6 +120,7 @@ All routes are same-origin under `/api`. JSON mutations require `Content-Type: a
 | `DELETE /api/observations/{id}`                                            | JSON `{ "revision": <newer integer> }`; repeatable deletion   |
 | `POST /api/map-features`                                                   | Create an authenticated, idempotent polygon feature            |
 | `GET /api/map-features?limit=100`                                          | List active public polygons; limit 1–200                       |
+| `DELETE /api/map-features/{id}`                                            | Authenticated, repeatable map-feature deletion                 |
 
 Collection responses are `{ observations, nextCursor }`, ordered by descending UUID for stable cursor pagination, and omit large motion/light arrays. Bounding boxes support crossing the antimeridian. Detail responses include measurement arrays. Local sync metadata and edit tokens are not public.
 

@@ -29,4 +29,6 @@ export interface MapFeature {
   lastError?: string;
   attempts?: number;
   nextRetryAt?: number;
+  deleted?: boolean;
+  remoteSynced?: boolean;
 }

@@ -53,13 +53,46 @@ final class MapFeatureRepository
     public function findForUpdate(string $id, string $geometry): array|false
     {
         return $this->connection->fetchAssociative(<<<'SQL'
-            SELECT feature.edit_token_hash, type.code AS type, COALESCE(feature.name, '') AS name,
-                ST_AsGeoJSON(feature.geometry)::jsonb = CAST(:geometry AS jsonb) AS same_geometry
+            SELECT feature.edit_token_hash, feature.status,
+                (SELECT type.code FROM map_feature_types type WHERE type.id = feature.type_id) AS type,
+                COALESCE(feature.name, '') AS name,
+                ST_Equals(
+                    feature.geometry,
+                    ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326)
+                ) AS same_geometry
             FROM map_features feature
-            JOIN map_feature_types type ON type.id = feature.type_id
             WHERE feature.id = :id
             FOR UPDATE
             SQL, ['id' => $id, 'geometry' => $geometry]);
+    }
+
+    public function insertTombstoneIfAbsent(string $id, string $tokenHash): void
+    {
+        $this->connection->executeStatement(<<<'SQL'
+            INSERT INTO map_features (id, status, edit_token_hash)
+            VALUES (:id, 'removed', :edit_token_hash)
+            ON CONFLICT (id) DO NOTHING
+            SQL, ['id' => $id, 'edit_token_hash' => $tokenHash]);
+    }
+
+    /** @return array<string, mixed>|false */
+    public function findByIdForUpdate(string $id): array|false
+    {
+        return $this->connection->fetchAssociative(<<<'SQL'
+            SELECT edit_token_hash, status
+            FROM map_features
+            WHERE id = :id
+            FOR UPDATE
+            SQL, ['id' => $id]);
+    }
+
+    public function markRemoved(string $id): void
+    {
+        $this->connection->executeStatement(<<<'SQL'
+            UPDATE map_features
+            SET status = 'removed', merged_into_id = NULL, updated_at = NOW()
+            WHERE id = :id
+            SQL, ['id' => $id]);
     }
 
     public function updateProperties(string $id, string $type, string $name): int
