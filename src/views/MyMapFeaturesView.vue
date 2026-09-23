@@ -5,6 +5,7 @@ import Button from "primevue/button";
 import Card from "primevue/card";
 import Dialog from "primevue/dialog";
 import Message from "primevue/message";
+import { useRouter } from "vue-router";
 import {
   deleteMapFeature,
   getLocalMapFeatures,
@@ -17,6 +18,7 @@ import {
 } from "../types/map-feature";
 
 const { t, locale } = useI18n();
+const router = useRouter();
 const features = ref<MapFeature[]>([]);
 const editId = ref("");
 const confirmId = ref("");
@@ -79,15 +81,29 @@ async function remove(id: string) {
 }
 
 onMounted(load);
+
+function close() {
+  void router.push({ name: "map" });
+}
 </script>
 
 <template>
-  <h1>{{ t("featureList.title") }}</h1>
-  <Message v-if="error" severity="error" role="alert">{{ error }}</Message>
-  <p v-if="!features.length">{{ t("featureList.empty") }}</p>
-  <ul class="observation-list">
-    <li v-for="feature in features" :key="feature.id">
-      <Card>
+  <Dialog
+    modal
+    dismissable-mask
+    :visible="true"
+    class="list-dialog"
+    aria-labelledby="objects-dialog-title"
+    @update:visible="close"
+  >
+    <template #header>
+      <h1 id="objects-dialog-title" class="dialog-title">{{ t("featureList.title") }}</h1>
+    </template>
+    <Message v-if="error" severity="error" role="alert">{{ error }}</Message>
+    <p v-if="!features.length">{{ t("featureList.empty") }}</p>
+    <ul class="observation-list">
+      <li v-for="feature in features" :key="feature.id">
+        <Card>
         <template #title>
           <h2>{{ feature.name || t("featureList.unnamed") }}</h2>
         </template>
@@ -148,6 +164,7 @@ onMounted(load);
           <Dialog
             v-if="confirmId === feature.id"
             modal
+            dismissable-mask
             :visible="true"
             :header="t('featureList.confirmDelete')"
             @update:visible="confirmId = ''"
@@ -167,7 +184,8 @@ onMounted(load);
             </template>
           </Dialog>
         </template>
-      </Card>
-    </li>
-  </ul>
+        </Card>
+      </li>
+    </ul>
+  </Dialog>
 </template>

@@ -12,11 +12,17 @@ export const messages = {
       observations: "Meine Beobachtungen",
       mapFeatures: "Meine Kartenobjekte",
     },
+    navigation: {
+      objects: "Objekte",
+      observations: "Beobachtungen",
+      create: "Anlegen",
+      myObjects: "Meine Objekte",
+      myObservations: "Meine Beobachtungen",
+    },
     map: {
       title: "Karte",
       location: "Standort",
       locate: "Standort verwenden",
-      updateLocation: "Standort aktualisieren",
       locating: "Standort wird gesucht…",
       add: "Eintrag hinzufügen",
       loadPublic: "Öffentliche Einträge laden",
@@ -131,7 +137,7 @@ export const messages = {
       measurementError: "Messung nicht verfügbar oder Berechtigung verweigert.",
     },
     list: {
-      title: "Meine Einträge",
+      title: "Meine Beobachtungen",
       edit: "Eintrag bearbeiten",
       delete: "Löschen",
       confirmDelete: "Eintrag und Fotos löschen?",
@@ -143,7 +149,7 @@ export const messages = {
       empty: "Noch keine Einträge.",
     },
     featureList: {
-      title: "Meine Kartenobjekte",
+      title: "Meine Objekte",
       empty: "Noch keine Kartenobjekte.",
       unnamed: "Unbenanntes Kartenobjekt",
       created: "Erstellt: {date}",
@@ -161,6 +167,7 @@ export const messages = {
     },
     sync: {
       title: "Veröffentlichen",
+      action: "Synchronisieren",
       online: "Online",
       offline: "Offline",
       queued: "{count} offen",

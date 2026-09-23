@@ -20,6 +20,9 @@ import type { Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
 
 const { t } = useI18n();
+withDefaults(defineProps<{ embedded?: boolean }>(), {
+  embedded: false,
+});
 const route = useRoute();
 const router = useRouter();
 const id = typeof route.params.id === "string" ? route.params.id : crypto.randomUUID();
@@ -129,7 +132,7 @@ async function save() {
 
 <template>
   <div class="form-page" id="new-observation">
-    <h1>{{ editing ? t("observation.edit") : t("observation.title") }}</h1>
+    <h1 v-if="!embedded">{{ editing ? t("observation.edit") : t("observation.title") }}</h1>
     <Card class="captured-location" aria-labelledby="captured-heading">
       <template #title><h2 id="captured-heading">{{ t("map.location") }}</h2></template>
       <template #content>

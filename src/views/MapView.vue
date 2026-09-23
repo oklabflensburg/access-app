@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, computed } from "vue";
 import { liveQuery } from "dexie";
-import { useRouter } from "vue-router";
+import { RouterView, useRouter } from "vue-router";
 import { getPublicMapFeatures, getPublicObservations } from "../services/api";
 import {
   database,
@@ -215,5 +215,6 @@ onBeforeUnmount(() => featureSubscription?.unsubscribe());
         {{ featureNotice }}
       </Message>
     </div>
+    <RouterView />
   </div>
 </template>
