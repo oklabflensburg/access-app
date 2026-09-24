@@ -334,28 +334,9 @@ onBeforeUnmount(() => {
       :aria-label="t('map.mapHelp')"
     />
     <div v-if="drawing" class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
-      <p class="drawing-instruction" role="status">
-        {{ t("map.drawHelp", { count: vertices.length }) }}
-      </p>
+
       <p v-if="drawingError" class="drawing-error" role="alert">{{ drawingError }}</p>
-      <div class="drawing-field">
-        <label for="feature-name">{{ t("map.featureName") }}</label>
-        <input
-          id="feature-name"
-          v-model="featureName"
-          type="text"
-          maxlength="120"
-          :placeholder="t('map.featureNamePlaceholder')"
-        />
-      </div>
-      <div class="drawing-field">
-        <label for="feature-type">{{ t("map.featureType") }}</label>
-        <select id="feature-type" v-model="featureType">
-          <option v-for="type in mapFeatureTypes" :key="type" :value="type">
-            {{ t(`map.featureTypes.${type}`) }}
-          </option>
-        </select>
-      </div>
+
       <button type="button" class="secondary" :disabled="!vertices.length" @click="undoVertex">
         {{ t("map.undoPoint") }}
       </button>

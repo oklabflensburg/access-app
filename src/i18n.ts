@@ -44,10 +44,10 @@ export const messages = {
       noComment: "Kein Kommentar.",
       drawControls: "Fläche zeichnen",
       drawArea: "Fläche zeichnen",
-      drawHelp: "Setzen Sie mindestens drei Eckpunkte auf der Karte. Aktuell: {count}.",
+
       undoPoint: "Punkt zurücknehmen",
       cancelDrawing: "Abbrechen",
-      closeAndSave: "Schließen und speichern",
+      closeAndSave: "Speichern",
       area: "Erfasste Fläche",
       featureName: "Name",
       featureNamePlaceholder: "z. B. Haupteingang",
