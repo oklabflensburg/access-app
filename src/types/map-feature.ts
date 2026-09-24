@@ -24,6 +24,7 @@ export interface MapFeature {
   name: string;
   geometry: PolygonGeometry;
   createdAt: string;
+  parentFeatureId?: string | null;
   syncStatus?: "ready" | "syncing" | "synced" | "failed";
   editToken?: string;
   lastError?: string;

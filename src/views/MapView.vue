@@ -58,6 +58,9 @@ const features = computed(() => {
 const selectedFeature = computed(() =>
   features.value.find(({ id }) => id === selectedFeatureId.value),
 );
+const selectedParentFeature = computed(() =>
+  features.value.find(({ id }) => id === selectedFeature.value?.parentFeatureId),
+);
 const canEditSelectedFeature = computed(() => Boolean(selectedFeature.value?.editToken));
 function editObservation(id: string) {
   void router.push({ name: "edit-observation", params: { id } });
@@ -103,15 +106,18 @@ async function createFeature({
   geometry,
   name,
   type,
+  parentFeatureId,
 }: {
   geometry: PolygonGeometry;
   name: string;
   type: MapFeatureType;
+  parentFeatureId: string | null;
 }) {
   featureNotice.value = "";
   try {
-    await saveMapFeature(geometry, name, type);
+    const feature = await saveMapFeature(geometry, name, type, parentFeatureId);
     localFeatures.value = await getLocalMapFeatures();
+    selectFeature(feature.id);
     featureNotice.value = t("map.featureSavedOffline");
   } catch (cause) {
     publicError.value =
@@ -187,6 +193,14 @@ onBeforeUnmount(() => featureSubscription?.unsubscribe());
           <i class="pi pi-times" aria-hidden="true" />
         </button>
       </div>
+      <button
+        v-if="selectedParentFeature"
+        type="button"
+        class="secondary"
+        @click="selectFeature(selectedParentFeature!.id)"
+      >
+        {{ t("map.showParentFeature") }}
+      </button>
       <label for="selected-feature-name">{{ t("map.featureName") }}</label>
       <input
         id="selected-feature-name"

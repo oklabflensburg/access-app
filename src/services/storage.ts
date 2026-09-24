@@ -26,6 +26,7 @@ export async function saveMapFeature(
   geometry: MapFeature["geometry"],
   name: string,
   type: MapFeatureType,
+  parentFeatureId: string | null = null,
 ): Promise<MapFeature> {
   const ring = geometry.coordinates[0];
   if (
@@ -49,6 +50,7 @@ export async function saveMapFeature(
     name: name.trim(),
     geometry,
     createdAt: new Date().toISOString(),
+    parentFeatureId,
     syncStatus: "ready",
     editToken: crypto.randomUUID(),
     attempts: 0,
