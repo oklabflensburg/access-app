@@ -22,18 +22,23 @@ const emit = defineEmits<{
   selectObservation: [id: string];
   selectLocation: [location: LocationData];
   selectFeature: [id: string];
-  createFeature: [feature: { geometry: PolygonGeometry; name: string; type: MapFeatureType }];
+  createFeature: [feature: { geometry: PolygonGeometry; name: string; type: MapFeatureType; parentFeatureId: string | null }];
 }>();
 const { t } = useI18n();
 const mapStore = useMapStore();
 const container = ref<HTMLDivElement>();
 const tileError = ref(false);
 const drawing = ref(false);
+const choosingParent = ref(false);
+const parentFeature = ref<MapFeature | null>(null);
 const vertices = ref<L.LatLng[]>([]);
 const drawingError = ref("");
 const featureName = ref("");
 const featureType = ref<MapFeatureType>("area");
 const longPressDelay = 700;
+let lastFeatureClickPoint: L.Point | undefined;
+let lastFeatureClickIds: string[] = [];
+let featureClickIndex = -1;
 let map: L.Map | undefined;
 let observationLayer: L.LayerGroup;
 let locationLayer: L.LayerGroup;
@@ -97,19 +102,103 @@ function renderDrawing() {
 function addVertex(event: L.LeafletEvent) {
   if (!drawing.value || !hasMapPoint(event) || vertices.value.length >= 500)
     return;
+  if (parentFeature.value && !containsPoint(parentFeature.value, event.latlng)) {
+    drawingError.value = t("map.pointOutsideParent");
+    return;
+  }
   vertices.value = [...vertices.value, event.latlng];
   drawingError.value = "";
   renderDrawing();
 }
 
-function startDrawing() {
+function startDrawing(mode: "feature" | "child" = "feature") {
   cancelLongPress();
-  drawing.value = true;
+  choosingParent.value = mode === "child";
+  drawing.value = mode === "feature";
+  parentFeature.value = null;
   vertices.value = [];
   drawingError.value = "";
   featureName.value = "";
   featureType.value = "area";
   renderDrawing();
+}
+
+function containsPoint(feature: MapFeature, point: L.LatLng): boolean {
+  const ring = feature.geometry.coordinates[0];
+  let inside = false;
+  const pixelPoint = map?.latLngToLayerPoint(point);
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (pixelPoint && map) {
+      const first = map.latLngToLayerPoint([yi, xi]);
+      const second = map.latLngToLayerPoint([yj, xj]);
+      const dx = second.x - first.x;
+      const dy = second.y - first.y;
+      const lengthSquared = dx * dx + dy * dy;
+      const ratio = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1,
+        ((pixelPoint.x - first.x) * dx + (pixelPoint.y - first.y) * dy) / lengthSquared,
+      ));
+      if (pixelPoint.distanceTo(L.point(first.x + ratio * dx, first.y + ratio * dy)) <= 8)
+        return true;
+    }
+    if (((yi > point.lat) !== (yj > point.lat))
+      && point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function chooseParent(feature: MapFeature, event: L.LeafletMouseEvent) {
+  if (!choosingParent.value) {
+    return;
+  }
+  L.DomEvent.stopPropagation(event.originalEvent);
+  parentFeature.value = feature;
+  choosingParent.value = false;
+  drawing.value = true;
+  drawingError.value = "";
+}
+
+function selectFeatureAtPoint(point: L.LatLng) {
+  const candidates = props.features
+    .filter((feature) => containsPoint(feature, point))
+    .sort((first, second) => featureDepth(first) - featureDepth(second));
+  if (!candidates.length) {
+    lastFeatureClickPoint = undefined;
+    lastFeatureClickIds = [];
+    featureClickIndex = -1;
+    return;
+  }
+  const ids = candidates.map(({ id }) => id);
+  const pointInContainer = map?.latLngToContainerPoint(point);
+  const samePlace = pointInContainer && lastFeatureClickPoint
+    && pointInContainer.distanceTo(lastFeatureClickPoint) <= 12
+    && ids.length === lastFeatureClickIds.length
+    && ids.every((id, index) => id === lastFeatureClickIds[index]);
+  featureClickIndex = samePlace ? (featureClickIndex + 1) % ids.length : 0;
+  lastFeatureClickPoint = pointInContainer;
+  lastFeatureClickIds = ids;
+  emit("selectFeature", ids[featureClickIndex]);
+}
+
+function selectFeatureOnMapClick(event: L.LeafletEvent) {
+  if (drawing.value || choosingParent.value || !hasMapPoint(event)) return;
+  selectFeatureAtPoint(event.latlng);
+}
+
+function featureDepth(feature: MapFeature): number {
+  let depth = 0;
+  let parentId = feature.parentFeatureId;
+  const visited = new Set([feature.id]);
+  while (parentId) {
+    if (visited.has(parentId)) break;
+    visited.add(parentId);
+    const parent = props.features.find(({ id }) => id === parentId);
+    if (!parent) break;
+    depth++;
+    parentId = parent.parentFeatureId;
+  }
+  return depth;
 }
 
 function undoVertex() {
@@ -120,6 +209,8 @@ function undoVertex() {
 
 function cancelDrawing() {
   drawing.value = false;
+  choosingParent.value = false;
+  parentFeature.value = null;
   vertices.value = [];
   drawingError.value = "";
   drawingLayer.clearLayers();
@@ -135,10 +226,16 @@ function finishDrawing() {
     drawingError.value = t("map.invalidPolygon");
     return;
   }
+  if (parentFeature.value && ring.slice(0, -1).some(([longitude, latitude]) =>
+    !containsPoint(parentFeature.value!, L.latLng(latitude, longitude)))) {
+    drawingError.value = t("map.pointOutsideParent");
+    return;
+  }
   emit("createFeature", {
     geometry: { type: "Polygon", coordinates: [ring] },
     name: featureName.value.trim(),
     type: featureType.value,
+    parentFeatureId: parentFeature.value?.id ?? null,
   });
   cancelDrawing();
 }
@@ -270,7 +367,9 @@ function drawFeatures() {
         ? t("map.featurePending")
         : "";
     polygon.bindTooltip(syncLabel ? `${label} · ${syncLabel}` : label);
-    polygon.on("click", () => emit("selectFeature", feature.id));
+    polygon.on("click", (event) => {
+      if (choosingParent.value) chooseParent(feature, event);
+    });
   });
   if (!props.location && !props.observations.length && props.features.length) {
     map?.fitBounds(
@@ -309,6 +408,7 @@ onMounted(() => {
   map.on("touchstart", startLongPress);
   map.on("mouseup touchend touchcancel dragstart move", cancelLongPress);
   map.on("click", addVertex);
+  map.on("click", selectFeatureOnMapClick);
   drawLocation();
   drawObservations();
   drawFeatures();
@@ -318,7 +418,7 @@ onMounted(() => {
 watch(() => props.location, drawLocation);
 watch(() => props.observations, drawObservations, { deep: true });
 watch(() => props.features, drawFeatures, { deep: true });
-watch(() => mapStore.drawRequest, startDrawing);
+watch(() => mapStore.drawRequest, () => startDrawing(mapStore.drawMode));
 onBeforeUnmount(() => {
   cancelLongPress();
   resizeObserver?.disconnect();
@@ -333,36 +433,20 @@ onBeforeUnmount(() => {
       class="map"
       :aria-label="t('map.mapHelp')"
     />
-    <div v-if="drawing" class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
-      <p class="drawing-instruction" role="status">
-        {{ t("map.drawHelp", { count: vertices.length }) }}
-      </p>
+    <div v-if="drawing || choosingParent" class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
+
+      <p v-if="choosingParent" class="drawing-instruction">{{ t("map.chooseParent") }}</p>
+      <p v-else-if="parentFeature" class="drawing-instruction">{{ t("map.drawWithinParent") }}</p>
+
       <p v-if="drawingError" class="drawing-error" role="alert">{{ drawingError }}</p>
-      <div class="drawing-field">
-        <label for="feature-name">{{ t("map.featureName") }}</label>
-        <input
-          id="feature-name"
-          v-model="featureName"
-          type="text"
-          maxlength="120"
-          :placeholder="t('map.featureNamePlaceholder')"
-        />
-      </div>
-      <div class="drawing-field">
-        <label for="feature-type">{{ t("map.featureType") }}</label>
-        <select id="feature-type" v-model="featureType">
-          <option v-for="type in mapFeatureTypes" :key="type" :value="type">
-            {{ t(`map.featureTypes.${type}`) }}
-          </option>
-        </select>
-      </div>
-      <button type="button" class="secondary" :disabled="!vertices.length" @click="undoVertex">
+
+      <button v-if="drawing" type="button" class="secondary" :disabled="!vertices.length" @click="undoVertex">
         {{ t("map.undoPoint") }}
       </button>
       <button type="button" class="secondary" @click="cancelDrawing">
         {{ t("map.cancelDrawing") }}
       </button>
-      <button type="button" class="primary" :disabled="vertices.length < 3" @click="finishDrawing">
+      <button v-if="drawing" type="button" class="primary" :disabled="vertices.length < 3" @click="finishDrawing">
         {{ t("map.closeAndSave") }}
       </button>
     </div>

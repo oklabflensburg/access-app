@@ -33,6 +33,9 @@ final class MapFeatureService
         if (!$this->features->isValidPolygon($geometry)) {
             throw new BadRequestHttpException('The polygon is not a valid, non-self-intersecting area.');
         }
+        if ($input->parentFeatureId !== null && !$this->features->isContainedBy($geometry, $input->parentFeatureId)) {
+            throw new BadRequestHttpException('A child map feature must be contained within its parent feature.');
+        }
 
         $this->transactions->transactional(function () use ($input, $tokenHash, $createdAt, $geometry): void {
             $inserted = $this->features->insertIfAbsent($input, $tokenHash, $createdAt, $geometry);
@@ -53,6 +56,9 @@ final class MapFeatureService
             }
             if (!$current['same_geometry']) {
                 throw new ConflictHttpException('A different map feature already uses this id.');
+            }
+            if (($current['parent_feature_id'] ?? null) !== $input->parentFeatureId) {
+                throw new ConflictHttpException('A different parent map feature already uses this id.');
             }
             if ($current['type'] !== $input->type || $current['name'] !== $input->name) {
                 $updated = $this->features->updateProperties($input->id, $input->type, $input->name);
@@ -100,6 +106,7 @@ final class MapFeatureService
                 'name' => $row['name'],
                 'geometry' => json_decode($row['geometry'], true, flags: JSON_THROW_ON_ERROR),
                 'createdAt' => (new \DateTimeImmutable($row['created_at']))->format(DATE_ATOM),
+                'parentFeatureId' => $row['parent_feature_id'],
             ];
         }, $rows)];
     }

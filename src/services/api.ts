@@ -86,6 +86,7 @@ export function uploadMapFeature(feature: MapFeature) {
       name: feature.name,
       geometry: feature.geometry,
       createdAt: feature.createdAt,
+      parentFeatureId: feature.parentFeatureId ?? null,
     }),
   });
 }

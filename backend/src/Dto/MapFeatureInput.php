@@ -30,6 +30,8 @@ final readonly class MapFeatureInput
         #[Assert\Length(max: 40)]
         #[Assert\Regex(pattern: '/^\d{4}-\d{2}-\d{2}T/')]
         public string $createdAt,
+        #[Assert\Uuid(versions: Assert\Uuid::V4_RANDOM)]
+        public ?string $parentFeatureId = null,
     ) {
     }
 
