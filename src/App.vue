@@ -26,14 +26,6 @@ async function startDrawing() {
   map.requestDrawing();
   menuOpen.value = false;
 }
-async function startChildDrawing() {
-  if (route.name !== "map") {
-    await router.push({ name: "map" });
-    await nextTick();
-  }
-  map.requestDrawing("child");
-  menuOpen.value = false;
-}
 let stop: (() => void) | undefined;
 onMounted(() => {
   stop = sync.start();
@@ -59,9 +51,6 @@ onBeforeUnmount(() => stop?.());
         <h2 id="objects-menu-heading" class="menu-heading">{{ t("navigation.objects") }}</h2>
         <button type="button" class="menu-action" @click="startDrawing">
           <i class="pi pi-plus" aria-hidden="true" /> {{ t("navigation.create") }}
-        </button>
-        <button type="button" class="menu-action" @click="startChildDrawing">
-          <i class="pi pi-sitemap" aria-hidden="true" /> {{ t("navigation.createChild") }}
         </button>
         <RouterLink to="/map-features" @click="menuOpen = false">
           <i class="pi pi-map-marker" aria-hidden="true" /> {{ t("navigation.myObjects") }}

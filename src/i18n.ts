@@ -16,7 +16,6 @@ export const messages = {
       objects: "Objekte",
       observations: "Beobachtungen",
       create: "Anlegen",
-      createChild: "Unterobjekt anlegen",
       myObjects: "Meine Objekte",
       myObservations: "Meine Beobachtungen",
     },
