@@ -42,6 +42,7 @@ let lastFeatureClickPoint: L.Point | undefined;
 let lastFeatureClickIds: string[] = [];
 let featureClickIndex = -1;
 let map: L.Map | undefined;
+let initialBoundsFitted = false;
 let observationLayer: L.LayerGroup;
 let locationLayer: L.LayerGroup;
 let featureLayer: L.LayerGroup;
@@ -453,6 +454,26 @@ function drawLocation() {
   map.setView(point, 17);
 }
 
+function fitInitialBounds() {
+  if (initialBoundsFitted || !map || props.location) return;
+  const observationPoints = props.observations.map(
+    (observation): L.LatLngTuple => [
+      observation.location.latitude,
+      observation.location.longitude,
+    ],
+  );
+  const points = observationPoints.length
+    ? observationPoints
+    : props.features.flatMap((feature) =>
+        feature.geometry.coordinates[0].map(
+          ([longitude, latitude]) => [latitude, longitude] as L.LatLngTuple,
+        ),
+      );
+  if (!points.length) return;
+  initialBoundsFitted = true;
+  map.fitBounds(L.latLngBounds(points), { maxZoom: 17, padding: [35, 35] });
+}
+
 function drawObservations() {
   if (!map) return;
   observationLayer.clearLayers();
@@ -491,17 +512,7 @@ function drawObservations() {
       .getElement()
       ?.setAttribute("aria-label", t("map.entry", { number: index + 1, label }));
   });
-  if (!props.location && props.observations.length) {
-    map.fitBounds(
-      L.latLngBounds(
-        props.observations.map((o) => [
-          o.location.latitude,
-          o.location.longitude,
-        ]),
-      ),
-      { maxZoom: 17, padding: [35, 35] },
-    );
-  }
+  fitInitialBounds();
 }
 
 function drawFeatures() {
@@ -527,18 +538,7 @@ function drawFeatures() {
       if (choosingParent.value) chooseParent(feature, event);
     });
   });
-  if (!props.location && !props.observations.length && props.features.length) {
-    map?.fitBounds(
-      L.latLngBounds(
-        props.features.flatMap((feature) =>
-          feature.geometry.coordinates[0].map(
-            ([longitude, latitude]) => [latitude, longitude] as L.LatLngTuple,
-          ),
-        ),
-      ),
-      { maxZoom: 17, padding: [35, 35] },
-    );
-  }
+  fitInitialBounds();
 }
 
 onMounted(() => {
