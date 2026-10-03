@@ -118,7 +118,14 @@ async function createFeature({
     const feature = await saveMapFeature(geometry, name, type, parentFeatureId);
     localFeatures.value = await getLocalMapFeatures();
     selectFeature(feature.id);
-    featureNotice.value = t("map.featureSavedOffline");
+    const parent = parentFeatureId
+      ? features.value.find((candidate) => candidate.id === parentFeatureId)
+      : undefined;
+    featureNotice.value = parent
+      ? t("map.featureSavedAsChild", {
+          name: parent.name || t(`map.featureTypes.${parent.type}`),
+        })
+      : t("map.featureSavedOffline");
   } catch (cause) {
     publicError.value =
       cause instanceof Error ? cause.message : t("map.featureSaveError");

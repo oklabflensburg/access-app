@@ -8,6 +8,7 @@ import {
   type MapFeature,
   type MapFeatureType,
   type PolygonGeometry,
+  type PolygonPosition,
 } from "../types/map-feature";
 import { useI18n } from "vue-i18n";
 import { useMapStore } from "../stores/map";
@@ -31,6 +32,7 @@ const tileError = ref(false);
 const drawing = ref(false);
 const choosingParent = ref(false);
 const parentFeature = ref<MapFeature | null>(null);
+const prospectiveParent = ref<MapFeature | null>(null);
 const vertices = ref<L.LatLng[]>([]);
 const drawingError = ref("");
 const featureName = ref("");
@@ -40,6 +42,7 @@ let lastFeatureClickPoint: L.Point | undefined;
 let lastFeatureClickIds: string[] = [];
 let featureClickIndex = -1;
 let map: L.Map | undefined;
+let initialBoundsFitted = false;
 let observationLayer: L.LayerGroup;
 let locationLayer: L.LayerGroup;
 let featureLayer: L.LayerGroup;
@@ -109,6 +112,7 @@ function addVertex(event: L.LeafletEvent) {
   vertices.value = [...vertices.value, event.latlng];
   drawingError.value = "";
   renderDrawing();
+  updateDrawingHints();
 }
 
 function startDrawing(mode: "feature" | "child" = "feature") {
@@ -116,6 +120,7 @@ function startDrawing(mode: "feature" | "child" = "feature") {
   choosingParent.value = mode === "child";
   drawing.value = mode === "feature";
   parentFeature.value = null;
+  prospectiveParent.value = null;
   vertices.value = [];
   drawingError.value = "";
   featureName.value = "";
@@ -148,6 +153,159 @@ function containsPoint(feature: MapFeature, point: L.LatLng): boolean {
   return inside;
 }
 
+interface RingBounds {
+  minLongitude: number;
+  minLatitude: number;
+  maxLongitude: number;
+  maxLatitude: number;
+}
+
+function openRing(ring: PolygonPosition[]): PolygonPosition[] {
+  const first = ring[0];
+  const last = ring.at(-1);
+  if (first && last && first[0] === last[0] && first[1] === last[1])
+    return ring.slice(0, -1);
+  return ring;
+}
+
+function pointInRing(
+  longitude: number,
+  latitude: number,
+  ring: PolygonPosition[],
+): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (((yi > latitude) !== (yj > latitude))
+      && longitude < ((xj - xi) * (latitude - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+function segmentsCross(
+  a: PolygonPosition,
+  b: PolygonPosition,
+  c: PolygonPosition,
+  d: PolygonPosition,
+): boolean {
+  const direction = (p: PolygonPosition, q: PolygonPosition, r: PolygonPosition) =>
+    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+  const abC = direction(a, b, c);
+  const abD = direction(a, b, d);
+  const cdA = direction(c, d, a);
+  const cdB = direction(c, d, b);
+  return ((abC > 0 && abD < 0) || (abC < 0 && abD > 0))
+    && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0));
+}
+
+function ringsCross(first: PolygonPosition[], second: PolygonPosition[]): boolean {
+  for (let i = 0; i < first.length; i++) {
+    const a = first[i];
+    const b = first[(i + 1) % first.length];
+    for (let j = 0; j < second.length; j++) {
+      if (segmentsCross(a, b, second[j], second[(j + 1) % second.length]))
+        return true;
+    }
+  }
+  return false;
+}
+
+function ringBounds(ring: PolygonPosition[]): RingBounds {
+  const bounds: RingBounds = {
+    minLongitude: Infinity,
+    minLatitude: Infinity,
+    maxLongitude: -Infinity,
+    maxLatitude: -Infinity,
+  };
+  for (const [longitude, latitude] of ring) {
+    if (longitude < bounds.minLongitude) bounds.minLongitude = longitude;
+    if (longitude > bounds.maxLongitude) bounds.maxLongitude = longitude;
+    if (latitude < bounds.minLatitude) bounds.minLatitude = latitude;
+    if (latitude > bounds.maxLatitude) bounds.maxLatitude = latitude;
+  }
+  return bounds;
+}
+
+function boundsOverlap(first: RingBounds, second: RingBounds): boolean {
+  return !(first.maxLongitude < second.minLongitude
+    || second.maxLongitude < first.minLongitude
+    || first.maxLatitude < second.minLatitude
+    || second.maxLatitude < first.minLatitude);
+}
+
+function featureOverlapsRing(
+  feature: MapFeature,
+  positions: PolygonPosition[],
+  positionBounds: RingBounds,
+): boolean {
+  const ring = openRing(feature.geometry.coordinates[0]);
+  if (ring.length < 3) return false;
+  if (!boundsOverlap(ringBounds(ring), positionBounds)) return false;
+  if (ringsCross(ring, positions)) return true;
+  if (positions.some(([longitude, latitude]) => pointInRing(longitude, latitude, ring)))
+    return true;
+  return ring.some(([longitude, latitude]) => pointInRing(longitude, latitude, positions));
+}
+
+function featureContainsRing(
+  feature: MapFeature,
+  positions: PolygonPosition[],
+): boolean {
+  const ring = openRing(feature.geometry.coordinates[0]);
+  if (ring.length < 3) return false;
+  if (!positions.every(([longitude, latitude]) => pointInRing(longitude, latitude, ring)))
+    return false;
+  return !ringsCross(ring, positions);
+}
+
+function ringArea(ring: PolygonPosition[]): number {
+  let sum = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
+    sum += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+  return Math.abs(sum) / 2;
+}
+
+function featureLabel(feature: MapFeature): string {
+  return feature.name || t(`map.featureTypes.${feature.type}`);
+}
+
+function detectParentFeature(
+  positions: PolygonPosition[],
+): { parent: MapFeature | null; conflict: MapFeature | null } {
+  const positionBounds = ringBounds(positions);
+  const overlapping = props.features.filter((feature) =>
+    featureOverlapsRing(feature, positions, positionBounds));
+  const containers = overlapping.filter((feature) =>
+    featureContainsRing(feature, positions));
+  if (containers.length) {
+    const parent = containers.reduce((best, candidate) => {
+      const depthDelta = featureDepth(candidate) - featureDepth(best);
+      if (depthDelta > 0) return candidate;
+      if (depthDelta === 0
+        && ringArea(openRing(candidate.geometry.coordinates[0]))
+          < ringArea(openRing(best.geometry.coordinates[0]))) return candidate;
+      return best;
+    });
+    return { parent, conflict: null };
+  }
+  return { parent: null, conflict: overlapping[0] ?? null };
+}
+
+function updateDrawingHints() {
+  if (parentFeature.value || vertices.value.length < 3) {
+    prospectiveParent.value = null;
+    return;
+  }
+  const positions = vertices.value.map(
+    (point): PolygonPosition => [point.lng, point.lat],
+  );
+  const { parent, conflict } = detectParentFeature(positions);
+  prospectiveParent.value = parent;
+  if (!parent && conflict)
+    drawingError.value = t("map.overlapsExistingFeature", { name: featureLabel(conflict) });
+}
+
 function chooseParent(feature: MapFeature, event: L.LeafletMouseEvent) {
   if (!choosingParent.value) {
     return;
@@ -162,7 +320,7 @@ function chooseParent(feature: MapFeature, event: L.LeafletMouseEvent) {
 function selectFeatureAtPoint(point: L.LatLng) {
   const candidates = props.features
     .filter((feature) => containsPoint(feature, point))
-    .sort((first, second) => featureDepth(first) - featureDepth(second));
+    .sort((first, second) => featureDepth(second) - featureDepth(first));
   if (!candidates.length) {
     lastFeatureClickPoint = undefined;
     lastFeatureClickIds = [];
@@ -205,12 +363,14 @@ function undoVertex() {
   vertices.value = vertices.value.slice(0, -1);
   drawingError.value = "";
   renderDrawing();
+  updateDrawingHints();
 }
 
 function cancelDrawing() {
   drawing.value = false;
   choosingParent.value = false;
   parentFeature.value = null;
+  prospectiveParent.value = null;
   vertices.value = [];
   drawingError.value = "";
   drawingLayer.clearLayers();
@@ -231,37 +391,34 @@ function finishDrawing() {
     drawingError.value = t("map.pointOutsideParent");
     return;
   }
+  let parentFeatureId = parentFeature.value?.id ?? null;
+  if (!parentFeature.value) {
+    // A drawing that overlaps an existing feature becomes its subobject.
+    const { parent, conflict } = detectParentFeature(ring.slice(0, -1));
+    if (conflict) {
+      drawingError.value = t("map.overlapsExistingFeature", {
+        name: featureLabel(conflict),
+      });
+      return;
+    }
+    parentFeatureId = parent?.id ?? null;
+  }
   emit("createFeature", {
     geometry: { type: "Polygon", coordinates: [ring] },
     name: featureName.value.trim(),
     type: featureType.value,
-    parentFeatureId: parentFeature.value?.id ?? null,
+    parentFeatureId,
   });
   cancelDrawing();
 }
 
 function polygonIntersectsItself(ring: [number, number][]): boolean {
-  const crosses = (
-    a: [number, number],
-    b: [number, number],
-    c: [number, number],
-    d: [number, number],
-  ) => {
-    const direction = (p: [number, number], q: [number, number], r: [number, number]) =>
-      (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
-    const abC = direction(a, b, c);
-    const abD = direction(a, b, d);
-    const cdA = direction(c, d, a);
-    const cdB = direction(c, d, b);
-    return ((abC > 0 && abD < 0) || (abC < 0 && abD > 0))
-      && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0));
-  };
   const edgeCount = ring.length - 1;
   for (let first = 0; first < edgeCount; first++) {
     for (let second = first + 1; second < edgeCount; second++) {
       if (second === first + 1 || (first === 0 && second === edgeCount - 1))
         continue;
-      if (crosses(ring[first], ring[first + 1], ring[second], ring[second + 1]))
+      if (segmentsCross(ring[first], ring[first + 1], ring[second], ring[second + 1]))
         return true;
     }
   }
@@ -295,6 +452,26 @@ function drawLocation() {
     .addTo(locationLayer);
   marker.getElement()?.setAttribute("aria-label", t("map.yourLocation"));
   map.setView(point, 17);
+}
+
+function fitInitialBounds() {
+  if (initialBoundsFitted || !map || props.location) return;
+  const observationPoints = props.observations.map(
+    (observation): L.LatLngTuple => [
+      observation.location.latitude,
+      observation.location.longitude,
+    ],
+  );
+  const points = observationPoints.length
+    ? observationPoints
+    : props.features.flatMap((feature) =>
+        feature.geometry.coordinates[0].map(
+          ([longitude, latitude]) => [latitude, longitude] as L.LatLngTuple,
+        ),
+      );
+  if (!points.length) return;
+  initialBoundsFitted = true;
+  map.fitBounds(L.latLngBounds(points), { maxZoom: 17, padding: [35, 35] });
 }
 
 function drawObservations() {
@@ -335,17 +512,7 @@ function drawObservations() {
       .getElement()
       ?.setAttribute("aria-label", t("map.entry", { number: index + 1, label }));
   });
-  if (!props.location && props.observations.length) {
-    map.fitBounds(
-      L.latLngBounds(
-        props.observations.map((o) => [
-          o.location.latitude,
-          o.location.longitude,
-        ]),
-      ),
-      { maxZoom: 17, padding: [35, 35] },
-    );
-  }
+  fitInitialBounds();
 }
 
 function drawFeatures() {
@@ -371,18 +538,7 @@ function drawFeatures() {
       if (choosingParent.value) chooseParent(feature, event);
     });
   });
-  if (!props.location && !props.observations.length && props.features.length) {
-    map?.fitBounds(
-      L.latLngBounds(
-        props.features.flatMap((feature) =>
-          feature.geometry.coordinates[0].map(
-            ([longitude, latitude]) => [latitude, longitude] as L.LatLngTuple,
-          ),
-        ),
-      ),
-      { maxZoom: 17, padding: [35, 35] },
-    );
-  }
+  fitInitialBounds();
 }
 
 onMounted(() => {
@@ -437,6 +593,7 @@ onBeforeUnmount(() => {
 
       <p v-if="choosingParent" class="drawing-instruction">{{ t("map.chooseParent") }}</p>
       <p v-else-if="parentFeature" class="drawing-instruction">{{ t("map.drawWithinParent") }}</p>
+      <p v-else-if="prospectiveParent" class="drawing-instruction">{{ t("map.drawsAsChild", { name: featureLabel(prospectiveParent) }) }}</p>
 
       <p v-if="drawingError" class="drawing-error" role="alert">{{ drawingError }}</p>
 

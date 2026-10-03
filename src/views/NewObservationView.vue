@@ -85,7 +85,7 @@ async function loadObservation() {
   accessibility.value = { ...observation.accessibility };
   comment.value = observation.comment;
   createdAt.value = observation.createdAt;
-  revision.value = observation.revision;
+  revision.value = observation.revision ?? 0;
   photos.value = savedPhotos;
   sensors.value = savedSensors ?? { observationId: id };
 }

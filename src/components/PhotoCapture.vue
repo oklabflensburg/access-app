@@ -64,6 +64,7 @@ async function add(event: FileUploadUploaderEvent) {
       <FileUpload
         id="camera"
         mode="basic"
+        auto
         accept="image/jpeg,image/png,image/webp"
         :choose-label="t('observation.takePhoto')"
         :custom-upload="true"
@@ -79,6 +80,7 @@ async function add(event: FileUploadUploaderEvent) {
         accept="image/jpeg,image/png,image/webp"
         multiple
         mode="basic"
+        auto
         :choose-label="t('observation.choosePhotos')"
         :custom-upload="true"
         :disabled="busy"

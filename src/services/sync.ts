@@ -84,6 +84,27 @@ async function runQueue(force: boolean) {
     .where("syncStatus")
     .anyOf("ready", "failed", "syncing")
     .toArray();
+  // A child references its parent, so parents are always published first.
+  const allFeatures = await database.mapFeatures.toArray();
+  const parentOf = new Map(
+    allFeatures.map((feature) => [feature.id, feature.parentFeatureId ?? null]),
+  );
+  const featureDepth = (id: string): number => {
+    let depth = 0;
+    let parentId = parentOf.get(id) ?? null;
+    const visited = new Set([id]);
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId);
+      depth++;
+      parentId = parentOf.get(parentId) ?? null;
+    }
+    return depth;
+  };
+  featureQueue.sort(
+    (first, second) =>
+      featureDepth(first.id) - featureDepth(second.id)
+      || Date.parse(first.createdAt) - Date.parse(second.createdAt),
+  );
   for (const feature of featureQueue) {
     if (!navigator.onLine) break;
     if (!force && (feature.nextRetryAt ?? 0) > Date.now()) continue;
