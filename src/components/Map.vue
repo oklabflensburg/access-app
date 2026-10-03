@@ -319,7 +319,7 @@ function chooseParent(feature: MapFeature, event: L.LeafletMouseEvent) {
 function selectFeatureAtPoint(point: L.LatLng) {
   const candidates = props.features
     .filter((feature) => containsPoint(feature, point))
-    .sort((first, second) => featureDepth(first) - featureDepth(second));
+    .sort((first, second) => featureDepth(second) - featureDepth(first));
   if (!candidates.length) {
     lastFeatureClickPoint = undefined;
     lastFeatureClickIds = [];

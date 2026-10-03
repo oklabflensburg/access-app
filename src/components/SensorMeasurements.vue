@@ -108,7 +108,7 @@ onBeforeUnmount(() => {
       />
     </p>
     <p v-if="active" role="status">
-      {{ t("observation.measuring", { kind: active }) }}
+      {{ t("observation.measuring", { kind: t(`observation.${active}Kind`) }) }}
       <Button type="button" outlined @click="controller?.abort()" :label="t('observation.cancel')" />
     </p>
     <Message v-if="error" severity="error" role="alert">{{ error }}</Message>

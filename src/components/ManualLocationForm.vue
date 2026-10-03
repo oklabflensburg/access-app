@@ -48,7 +48,7 @@ function selectLocation() {
       <label for="latitude">
         {{ t("location.latitude") }}
         <InputNumber
-          id="latitude"
+          input-id="latitude"
           v-model="latitude"
           name="latitude"
           :min="-90"
@@ -61,7 +61,7 @@ function selectLocation() {
       <label for="longitude">
         {{ t("location.longitude") }}
         <InputNumber
-          id="longitude"
+          input-id="longitude"
           v-model="longitude"
           name="longitude"
           :min="-180"

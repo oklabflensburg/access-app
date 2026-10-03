@@ -138,7 +138,7 @@ export async function saveObservation(
     database.sensors,
     async () => {
       const old = await database.observations.get(observation.id);
-      if (old && (old.revision !== observation.revision || old.deleted))
+      if (old && ((old.revision ?? 0) !== observation.revision || old.deleted))
         throw new Error(t("errors.observationConflict"));
       const record: Observation = JSON.parse(
         JSON.stringify({

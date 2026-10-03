@@ -224,6 +224,99 @@ test("saves a feature drawn inside an existing one as its subobject", async ({
   expect(localChild.parentFeatureId).toBe(localParent.id);
 });
 
+test("clicking a subobject first selects it and then its parent", async ({
+  page,
+}) => {
+  await page.route("**/api/map-features*", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: { features: [] } });
+      return;
+    }
+    if (route.request().method() === "DELETE") {
+      await route.fulfill({
+        json: { id: route.request().url().split("/").at(-1) },
+      });
+      return;
+    }
+    const payload = route.request().postDataJSON();
+    await route.fulfill({ json: { id: payload.id } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  const map = page.locator(".map");
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Map is not visible");
+
+  await page.mouse.click(bounds.x + 200, bounds.y + 150);
+  await page.mouse.click(bounds.x + 420, bounds.y + 150);
+  await page.mouse.click(bounds.x + 310, bounds.y + 300);
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(
+    page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
+  ).toBeVisible();
+
+  const details = page.getByRole("form", { name: "Flächendetails" });
+  await details.getByLabel("Name").fill("Hauptgebäude");
+  await details.getByLabel("Typ").selectOption("building");
+  await details.getByRole("button", { name: "Änderungen speichern" }).click();
+  await page.getByRole("button", { name: "Flächendetails schließen" }).click();
+
+  // Saving refits the map to the drawn feature; wait for the animation to settle.
+  await page.waitForTimeout(800);
+  const parentBox = await page
+    .locator(".leaflet-overlay-pane path")
+    .first()
+    .boundingBox();
+  if (!parentBox) throw new Error("The drawn feature is not rendered");
+  const centerX = parentBox.x + parentBox.width / 2;
+  const centerY = parentBox.y + parentBox.height / 3;
+  const delta = Math.min(parentBox.width, parentBox.height) * 0.1;
+
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.mouse.click(centerX - delta, centerY);
+  await page.mouse.click(centerX + delta, centerY);
+  await page.mouse.click(centerX, centerY + delta * 1.5);
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(
+    page.getByText(
+      'Das Objekt wurde als Unterobjekt von „Hauptgebäude“ lokal gespeichert und wird später synchronisiert.',
+    ),
+  ).toBeVisible();
+  await details.getByLabel("Name").fill("Eingang");
+  await details.getByRole("button", { name: "Änderungen speichern" }).click();
+  await page.getByRole("button", { name: "Flächendetails schließen" }).click();
+
+  // Saving refits the map to the drawn features; wait for the animation to settle.
+  await page.waitForTimeout(800);
+  const boxes = await page.evaluate(() =>
+    Array.from(document.querySelectorAll(".leaflet-overlay-pane path")).map(
+      (path) => {
+        const box = path.getBoundingClientRect();
+        return { x: box.x, y: box.y, width: box.width, height: box.height };
+      },
+    ),
+  );
+  const childBox = boxes.reduce((smallest, box) =>
+    box.width * box.height < smallest.width * smallest.height ? box : smallest,
+  );
+  const clickX = childBox.x + childBox.width / 2;
+  const clickY = childBox.y + childBox.height / 2;
+
+  await page.mouse.click(clickX, clickY);
+  await expect(details.getByLabel("Name")).toHaveValue("Eingang");
+  await expect(
+    page.getByRole("button", { name: "Übergeordnetes Objekt anzeigen" }),
+  ).toBeVisible();
+
+  await page.mouse.click(clickX, clickY);
+  await expect(details.getByLabel("Name")).toHaveValue("Hauptgebäude");
+  await expect(
+    page.getByRole("button", { name: "Übergeordnetes Objekt anzeigen" }),
+  ).toHaveCount(0);
+});
+
 test("rejects a feature that only partially overlaps an existing one", async ({
   page,
 }) => {
@@ -316,69 +409,8 @@ test("opens a new observation at a long-pressed map point", async ({ page }) => 
   ).toBeVisible();
 });
 
-test("captures a fresh location, saves the questionnaire, and restores its marker after reload", async ({
-  page,
-  context,
-}) => {
-  await context.grantPermissions(["geolocation"]);
-  await context.setGeolocation({
-    latitude: 52.5201,
-    longitude: 13.4049,
-    accuracy: 8,
-  });
-  await page.goto("/");
-  await page.getByRole("button", { name: "Use my location" }).click();
-  await expect(page.getByText("Within 8 m")).toBeVisible();
-  await context.setGeolocation({
-    latitude: 52.5212,
-    longitude: 13.4058,
-    accuracy: 5,
-  });
-  await page
-    .getByRole("link", { name: "+ Add accessibility information" })
-    .click();
-  await expect(page.getByText("52.521200, 13.405800")).toBeVisible();
-  await page
-    .getByRole("group", { name: "Wheelchair accessible?", exact: true })
-    .getByLabel("Yes", { exact: true })
-    .check();
-  await page
-    .getByRole("group", { name: "Steps at entrance?", exact: true })
-    .getByLabel("0", { exact: true })
-    .check();
-  await page
-    .getByRole("group", { name: "Accessible toilet?", exact: true })
-    .getByLabel("No", { exact: true })
-    .check();
-  await page.getByLabel("Surface", { exact: true }).selectOption("smooth");
-  await page
-    .getByLabel("Comment")
-    .fill("<img src=x onerror=alert(1)> Side entrance");
-  await page
-    .getByRole("button", { name: "Save observation on this device" })
-    .click();
-  await expect(
-    page
-      .getByRole("status")
-      .filter({ hasText: "Observation saved on this device." }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("Saved observations (1)", { exact: false }),
-  ).toBeVisible();
-  await page.reload();
-  const marker = page.getByRole("button", {
-    name: "Observation 1: Wheelchair accessible",
-    exact: true,
-  });
-  await expect(marker).toBeVisible();
-  await marker.click();
-  await expect(
-    page.getByText("<img src=x onerror=alert(1)> Side entrance", {
-      exact: true,
-    }),
-  ).toBeVisible();
-  await expect(page.locator(".leaflet-popup-content img")).toHaveCount(0);
-  const rows = await page.evaluate(async () => {
+async function readObservations(page: import("@playwright/test").Page) {
+  return await page.evaluate(async () => {
     const request = indexedDB.open("accessapp");
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
       request.onsuccess = () => resolve(request.result);
@@ -388,13 +420,84 @@ test("captures a fresh location, saves the questionnaire, and restores its marke
       .transaction("observations")
       .objectStore("observations")
       .getAll();
-    return new Promise<any[]>((resolve) => {
-      read.onsuccess = () => {
-        db.close();
-        resolve(read.result);
-      };
+    return await new Promise<any[]>((resolve) => {
+      read.onsuccess = () => resolve(read.result);
     });
   });
+}
+
+async function mockEmptyPublicApi(page: import("@playwright/test").Page) {
+  await page.route("**/api/observations*", (route) => {
+    if (route.request().method() !== "GET") {
+      return route.fulfill({ json: { id: "uploaded", revision: 2 } });
+    }
+    return route.fulfill({ json: { observations: [], nextCursor: null } });
+  });
+  await page.route("**/api/map-features*", (route) => {
+    if (route.request().method() !== "GET") {
+      return route.fulfill({ json: { id: "uploaded" } });
+    }
+    return route.fulfill({ json: { features: [] } });
+  });
+}
+
+test("captures a fresh location, saves the questionnaire, and restores its marker after reload", async ({
+  page,
+  context,
+}) => {
+  await mockEmptyPublicApi(page);
+  await context.grantPermissions(["geolocation"]);
+  await context.setGeolocation({
+    latitude: 52.5201,
+    longitude: 13.4049,
+    accuracy: 8,
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Standort", exact: true }).click();
+  await expect(page.locator(".position-marker")).toBeVisible();
+  await context.setGeolocation({
+    latitude: 52.5212,
+    longitude: 13.4058,
+    accuracy: 5,
+  });
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("link", { name: "Anlegen" }).click();
+  await expect(page.getByText("52.521200, 13.405800")).toBeVisible();
+  await expect(page.getByText("± 5 m")).toBeVisible();
+  await page
+    .getByRole("group", { name: "Rollstuhlgerecht?" })
+    .getByLabel("Ja", { exact: true })
+    .check();
+  await page
+    .getByRole("group", { name: "Stufen am Eingang?" })
+    .getByLabel("0", { exact: true })
+    .check();
+  await page
+    .getByRole("group", { name: "Barrierefreies WC?" })
+    .getByLabel("Nein", { exact: true })
+    .check();
+  await page.getByRole("combobox").click();
+  await page.getByRole("option", { name: "Glatt" }).click();
+  await page
+    .getByLabel("Kommentar")
+    .fill("<img src=x onerror=alert(1)> Seiteneingang");
+  await page.getByRole("button", { name: "Speichern" }).click();
+  const marker = page.getByRole("button", {
+    name: "Eintrag 1: Rollstuhlgerecht",
+    exact: true,
+  });
+  await expect(marker).toBeVisible();
+  await page.reload();
+  await expect(marker).toBeVisible();
+  await marker.click();
+  await expect(
+    page.getByRole("heading", { name: "Eintrag bearbeiten" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Kommentar")).toHaveValue(
+    "<img src=x onerror=alert(1)> Seiteneingang",
+  );
+  await expect(page.locator('img[src="x"]')).toHaveCount(0);
+  const rows = await readObservations(page);
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({
     location: { latitude: 52.5212, longitude: 13.4058, accuracy: 5 },
@@ -413,6 +516,7 @@ test("captures a fresh location, saves the questionnaire, and restores its marke
 test("denied location is explained and retry preserves answers", async ({
   page,
 }) => {
+  await mockEmptyPublicApi(page);
   await page.addInitScript(() => {
     let attempts = 0;
     Object.defineProperty(navigator, "geolocation", {
@@ -441,23 +545,28 @@ test("denied location is explained and retry preserves answers", async ({
     });
   });
   await page.goto("/observation/new");
-  await expect(page.getByRole("alert")).toContainText(
-    "Location permission was denied",
-  );
   await expect(
-    page.getByRole("button", { name: "Save observation on this device" }),
+    page.getByRole("dialog", { name: "Neuer Eintrag" }).getByRole("alert"),
+  ).toContainText("Standortfreigabe wurde verweigert");
+  await expect(
+    page.getByRole("button", { name: "Speichern" }),
   ).toBeDisabled();
-  await page.getByLabel("Comment").fill("Keep these answers");
-  await page.getByRole("button", { name: "Try location again" }).click();
-  await expect(page.getByLabel("Comment")).toHaveValue("Keep these answers");
+  await page.getByLabel("Kommentar").fill("Antworten behalten");
+  await page.getByRole("button", { name: "Standort verwenden" }).click();
+  await expect(page.getByLabel("Kommentar")).toHaveValue("Antworten behalten");
+  await expect(page.getByText("51.000000, 7.000000")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Save observation on this device" }),
+    page.getByRole("button", { name: "Standort aktualisieren" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Speichern" }),
   ).toBeEnabled();
 });
 
 test("temporarily unavailable location falls back to a network position", async ({
   page,
 }) => {
+  await mockEmptyPublicApi(page);
   await page.addInitScript(() => {
     let attempts = 0;
     Object.defineProperty(navigator, "geolocation", {
@@ -497,13 +606,14 @@ test("temporarily unavailable location falls back to a network position", async 
   await expect(page.getByText("52.520000, 13.405000")).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "Save observation on this device" }),
+    page.getByRole("button", { name: "Speichern" }),
   ).toBeEnabled();
 });
 
 test("manual coordinates allow collection when CoreLocation stays unavailable", async ({
   page,
 }) => {
+  await mockEmptyPublicApi(page);
   await page.addInitScript(() => {
     Object.defineProperty(navigator, "geolocation", {
       value: {
@@ -518,16 +628,16 @@ test("manual coordinates allow collection when CoreLocation stays unavailable", 
   });
 
   await page.goto("/observation/new");
-  await expect(page.getByRole("alert")).toContainText(
-    "temporarily unavailable",
-  );
-  await page.getByLabel("Latitude").fill("52.5208");
-  await page.getByLabel("Longitude").fill("13.4095");
-  await page.getByRole("button", { name: "Use these coordinates" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Neuer Eintrag" }).getByRole("alert"),
+  ).toContainText("vorübergehend nicht verfügbar");
+  await page.getByLabel("Breitengrad").fill("52.5208");
+  await page.getByLabel("Längengrad").fill("13.4095");
+  await page.getByRole("button", { name: "Koordinaten verwenden" }).click();
 
   await expect(page.getByText("52.520800, 13.409500")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Save observation on this device" }),
+    page.getByRole("button", { name: "Speichern" }),
   ).toBeEnabled();
 });
 
@@ -535,24 +645,25 @@ test("saves locally while offline without duplicate submissions", async ({
   page,
   context,
 }) => {
+  await mockEmptyPublicApi(page);
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 52, longitude: 13 });
   await page.goto("/observation/new");
-  const save = page.getByRole("button", {
-    name: "Save observation on this device",
-  });
+  const save = page.getByRole("button", { name: "Speichern" });
   await expect(save).toBeEnabled();
   await context.setOffline(true);
   await save.dblclick();
-  await expect(
-    page.getByText("Saved observations (1)", { exact: false }),
-  ).toBeVisible();
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator(".observation-marker--owned")).toHaveCount(1);
+  const rows = await readObservations(page);
+  expect(rows).toHaveLength(1);
 });
 
 test("storage failure keeps the questionnaire available for retry", async ({
   page,
   context,
 }) => {
+  await mockEmptyPublicApi(page);
   await context.grantPermissions(["geolocation"]);
   await context.setGeolocation({ latitude: 52, longitude: 13 });
   await page.addInitScript(() => {
@@ -561,41 +672,49 @@ test("storage failure keeps the questionnaire available for retry", async ({
     };
   });
   await page.goto("/observation/new");
-  await page.getByLabel("Comment").fill("Do not lose this comment");
+  await page.getByLabel("Kommentar").fill("Diesen Kommentar nicht verlieren");
   await page
-    .getByRole("button", { name: "Save observation on this device" })
+    .getByRole("button", { name: "Speichern" })
     .click();
   await expect(page.getByRole("alert")).toContainText(
-    "Could not save on this device",
+    "Eintrag konnte nicht gespeichert werden",
   );
-  await expect(page.getByLabel("Comment")).toHaveValue(
-    "Do not lose this comment",
+  await expect(page.getByLabel("Kommentar")).toHaveValue(
+    "Diesen Kommentar nicht verlieren",
   );
   await expect(
-    page.getByRole("button", { name: "Save observation on this device" }),
+    page.getByRole("button", { name: "Speichern" }),
   ).toBeEnabled();
 });
 
 test("mobile layout fits the viewport and keyboard can reach the questionnaire", async ({
   page,
 }) => {
+  await mockEmptyPublicApi(page);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/");
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("link", { name: "Skip to content" }),
+    page.getByRole("link", { name: "Zum Inhalt" }),
   ).toBeFocused();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
-  await page
-    .getByRole("link", { name: "+ Add accessibility information" })
-    .click();
+  // Move focus off the skip link (it overlays the menu button while focused)
+  // and open the menu with the keyboard.
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await page.getByRole("link", { name: "Anlegen" }).click();
   await expect(
-    page.getByRole("heading", { name: "New observation" }),
-  ).toBeFocused();
+    page.getByRole("heading", { name: "Neuer Eintrag" }),
+  ).toBeVisible();
+  await expect
+    .poll(async () =>
+      page.evaluate(() => !!document.activeElement?.closest(".p-dialog")),
+    )
+    .toBe(true);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
