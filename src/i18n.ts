@@ -48,6 +48,9 @@ export const messages = {
       chooseParent: "Wählen Sie die bestehende Fläche, in der das Unterobjekt liegen soll.",
       drawWithinParent: "Klicken Sie Punkte nur innerhalb der ausgewählten Fläche.",
       pointOutsideParent: "Punkte müssen innerhalb der ausgewählten Fläche liegen.",
+      drawsAsChild: "Wird als Unterobjekt von „{name}“ gespeichert.",
+      overlapsExistingFeature:
+        "Die neue Fläche überlappt „{name}“. Bitte zeichnen Sie sie vollständig innerhalb des bestehenden Objekts oder vollständig außerhalb davon.",
 
       undoPoint: "Punkt zurücknehmen",
       cancelDrawing: "Abbrechen",
@@ -79,6 +82,8 @@ export const messages = {
       featureFailed: "Synchronisierung der Fläche fehlgeschlagen",
       featureSaved: "Fläche wurde dauerhaft gespeichert.",
       featureSavedOffline: "Fläche wurde lokal gespeichert und wird später synchronisiert.",
+      featureSavedAsChild:
+        "Das Objekt wurde als Unterobjekt von „{name}“ lokal gespeichert und wird später synchronisiert.",
       featureSaveError: "Fläche konnte nicht gespeichert werden.",
       invalidPolygon: "Die Linien dürfen sich nicht kreuzen und die Eckpunkte müssen verschieden sein.",
     },

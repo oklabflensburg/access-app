@@ -27,7 +27,7 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Fläche zeichnen" }).click();
+  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
   const map = page.locator(".map");
   const bounds = await map.boundingBox();
   if (!bounds) throw new Error("Map is not visible");
@@ -35,19 +35,15 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   await page.mouse.click(bounds.x + 180, bounds.y + 160);
   await page.mouse.click(bounds.x + 300, bounds.y + 160);
   await page.mouse.click(bounds.x + 240, bounds.y + 260);
-  await page.getByLabel("Name").fill("Nordrampe");
-  await page.getByLabel("Typ").selectOption("ramp");
-  await page.getByRole("button", { name: "Schließen und speichern" }).click();
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
 
   await expect(
     page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
   ).toBeVisible();
   expect(postRequests).toBe(0);
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(1);
-  await page.locator(".leaflet-overlay-pane path").click({ force: true });
   const details = page.getByRole("form", { name: "Flächendetails" });
-  await expect(details.getByLabel("Name")).toHaveValue("Nordrampe");
-  await expect(details.getByLabel("Typ")).toHaveValue("ramp");
+  await expect(details.getByLabel("Name")).toHaveValue("");
   await details.getByLabel("Name").fill("Nordeingang");
   await details.getByLabel("Typ").selectOption("entrance");
   await details.getByRole("button", { name: "Änderungen speichern" }).click();
@@ -65,7 +61,7 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
       request.postDataJSON().name === "Nordeingang",
   );
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Jetzt synchronisieren" }).click();
+  await page.getByRole("button", { name: /Synchronisieren/ }).click();
   const saved = (await syncRequest).postDataJSON();
   expect(saved?.geometry.type).toBe("Polygon");
   expect(saved?.name).toBe("Nordeingang");
@@ -92,21 +88,27 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   expect(local[0].name).toBe("Nordeingang");
   expect(local[0].type).toBe("entrance");
 
-  await page.getByRole("link", { name: "Meine Kartenobjekte" }).click();
+  await page.getByRole("link", { name: "Meine Objekte" }).click();
   await expect(
-    page.getByRole("heading", { name: "Meine Kartenobjekte" }),
+    page.getByRole("heading", { name: "Meine Objekte" }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Nordeingang" })).toBeVisible();
   await page.getByRole("button", { name: "Kartenobjekt bearbeiten" }).click();
-  await page.getByLabel("Name").fill("Nordrampe barrierefrei");
-  await page.getByLabel("Typ").selectOption("ramp");
-  await page.getByRole("button", { name: "Änderungen speichern" }).click();
+  const editDialog = page.getByRole("dialog", { name: "Meine Objekte" });
+  await editDialog.getByLabel("Name").fill("Nordrampe barrierefrei");
+  await editDialog.getByLabel("Typ").selectOption("ramp");
+  await editDialog.getByRole("button", { name: "Änderungen speichern" }).click();
   await expect(
     page.getByRole("heading", { name: "Nordrampe barrierefrei" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Kartenobjekt löschen" }).click();
   await page.getByRole("button", { name: "Löschen bestätigen" }).click();
   await expect(page.getByText("Noch keine Kartenobjekte.")).toBeVisible();
+  await page
+    .getByRole("dialog", { name: "Meine Objekte" })
+    .getByRole("button", { name: "Close" })
+    .click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   const deleteRequest = page.waitForRequest(
     (request) =>
@@ -114,8 +116,182 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
       request.url().includes(`/api/map-features/${saved.id}`),
   );
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Jetzt synchronisieren" }).click();
+  await page.getByRole("button", { name: /Synchronisieren/ }).click();
   await deleteRequest;
+});
+
+async function readMapFeatures(page: import("@playwright/test").Page) {
+  return await page.evaluate(async () => {
+    const request = indexedDB.open("accessapp");
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const read = db
+      .transaction("mapFeatures")
+      .objectStore("mapFeatures")
+      .getAll();
+    return await new Promise<any[]>((resolve) => {
+      read.onsuccess = () => resolve(read.result);
+    });
+  });
+}
+
+test("saves a feature drawn inside an existing one as its subobject", async ({
+  page,
+}) => {
+  const posted: any[] = [];
+  await page.route("**/api/map-features*", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: { features: [] } });
+      return;
+    }
+    if (route.request().method() === "DELETE") {
+      await route.fulfill({
+        json: { id: route.request().url().split("/").at(-1) },
+      });
+      return;
+    }
+    const payload = route.request().postDataJSON();
+    posted.push(payload);
+    await route.fulfill({ json: { id: payload.id } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  const map = page.locator(".map");
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Map is not visible");
+
+  await page.mouse.click(bounds.x + 200, bounds.y + 150);
+  await page.mouse.click(bounds.x + 420, bounds.y + 150);
+  await page.mouse.click(bounds.x + 310, bounds.y + 300);
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(
+    page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
+  ).toBeVisible();
+
+  const details = page.getByRole("form", { name: "Flächendetails" });
+  await details.getByLabel("Name").fill("Hauptgebäude");
+  await details.getByLabel("Typ").selectOption("building");
+  await details.getByRole("button", { name: "Änderungen speichern" }).click();
+  await page.getByRole("button", { name: "Flächendetails schließen" }).click();
+
+  // Saving refits the map to the drawn feature; wait for the animation to settle.
+  await page.waitForTimeout(800);
+  const polygonBox = await page
+    .locator(".leaflet-overlay-pane path")
+    .first()
+    .boundingBox();
+  if (!polygonBox) throw new Error("The drawn feature is not rendered");
+  const centerX = polygonBox.x + polygonBox.width / 2;
+  const centerY = polygonBox.y + polygonBox.height / 3;
+  const delta = Math.min(polygonBox.width, polygonBox.height) * 0.1;
+
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.mouse.click(centerX - delta, centerY);
+  await page.mouse.click(centerX + delta, centerY);
+  await page.mouse.click(centerX, centerY + delta * 1.5);
+  await expect(
+    page.getByText('Wird als Unterobjekt von „Hauptgebäude“ gespeichert.'),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+
+  await expect(
+    page.getByText(
+      'Das Objekt wurde als Unterobjekt von „Hauptgebäude“ lokal gespeichert und wird später synchronisiert.',
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Übergeordnetes Objekt anzeigen" }),
+  ).toBeVisible();
+  await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(2);
+
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: /Synchronisieren/ }).click();
+  await expect.poll(() => posted.length).toBe(2);
+  const parent = posted.find((payload) => !payload.parentFeatureId);
+  const child = posted.find((payload) => payload.parentFeatureId);
+  expect(parent?.name).toBe("Hauptgebäude");
+  expect(child?.parentFeatureId).toBe(parent?.id);
+  expect(posted.indexOf(child)).toBeGreaterThan(posted.indexOf(parent));
+
+  const local = await readMapFeatures(page);
+  expect(local).toHaveLength(2);
+  const localChild = local.find((feature) => feature.parentFeatureId);
+  const localParent = local.find((feature) => !feature.parentFeatureId);
+  expect(localChild.parentFeatureId).toBe(localParent.id);
+});
+
+test("rejects a feature that only partially overlaps an existing one", async ({
+  page,
+}) => {
+  await page.route("**/api/map-features*", async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({ json: { features: [] } });
+      return;
+    }
+    const payload = route.request().postDataJSON();
+    await route.fulfill({ json: { id: payload.id } });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  const map = page.locator(".map");
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Map is not visible");
+
+  await page.mouse.click(bounds.x + 200, bounds.y + 150);
+  await page.mouse.click(bounds.x + 420, bounds.y + 150);
+  await page.mouse.click(bounds.x + 310, bounds.y + 300);
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(
+    page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
+  ).toBeVisible();
+
+  const details = page.getByRole("form", { name: "Flächendetails" });
+  await details.getByLabel("Name").fill("Hauptgebäude");
+  await details.getByLabel("Typ").selectOption("building");
+  await details.getByRole("button", { name: "Änderungen speichern" }).click();
+  await page.getByRole("button", { name: "Flächendetails schließen" }).click();
+
+  // Saving refits the map to the drawn feature; wait for the animation to settle.
+  await page.waitForTimeout(800);
+  const polygonBox = await page
+    .locator(".leaflet-overlay-pane path")
+    .first()
+    .boundingBox();
+  if (!polygonBox) throw new Error("The drawn feature is not rendered");
+  const centerX = polygonBox.x + polygonBox.width / 2;
+  const centerY = polygonBox.y + polygonBox.height / 3;
+  const delta = Math.min(polygonBox.width, polygonBox.height) * 0.1;
+
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.mouse.click(centerX - delta, centerY);
+  await page.mouse.click(centerX + delta, centerY);
+  // The third point lies left of the existing polygon, so the drawing only partially overlaps it.
+  await page.mouse.click(
+    polygonBox.x + polygonBox.width * 0.05,
+    polygonBox.y + polygonBox.height * 0.25,
+  );
+  await expect(
+    page.getByText('Die neue Fläche überlappt „Hauptgebäude“'),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(
+    page.getByText('Die neue Fläche überlappt „Hauptgebäude“'),
+  ).toBeVisible();
+  const local = await readMapFeatures(page);
+  expect(local).toHaveLength(1);
+  expect(local[0].name).toBe("Hauptgebäude");
+
+  await page.getByRole("button", { name: "Abbrechen" }).click();
+  await expect(
+    page.getByRole("button", { name: "Speichern", exact: true }),
+  ).toHaveCount(0);
 });
 
 test("opens a new observation at a long-pressed map point", async ({ page }) => {
