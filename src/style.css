@@ -175,6 +175,10 @@ main {
   background: #e5eadf;
   z-index: 0;
 }
+.map--picking,
+.map--picking .leaflet-interactive {
+  cursor: crosshair !important;
+}
 .map-caption {
   display: flex;
   justify-content: space-between;
@@ -327,6 +331,10 @@ main {
 }
 .captured-location .location-details {
   margin-top: 12px;
+}
+.captured-location .parent-feature {
+  margin: 12px 0 0;
+  font-weight: 600;
 }
 .questionnaire fieldset {
   border: 0;

@@ -32,3 +32,13 @@ function close() {
     <NewObservationView embedded />
   </Dialog>
 </template>
+
+<style>
+.p-dialog.edit-observation-dialog {
+  width: min(800px, calc(100vw - 32px));
+}
+.p-dialog.edit-observation-dialog .p-dialog-content {
+  padding-bottom: 0;
+  scroll-padding-block: 16px 150px;
+}
+</style>

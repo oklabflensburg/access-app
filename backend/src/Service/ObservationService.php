@@ -10,6 +10,7 @@ use App\Entity\Media;
 use App\Entity\Observation;
 use App\Entity\SensorMeasurement;
 use App\Persistence\TransactionManager;
+use App\Repository\MapFeatureRepository;
 use App\Repository\MediaRepository;
 use App\Repository\ObservationRepository;
 use App\Repository\SensorMeasurementRepository;
@@ -24,6 +25,7 @@ final class ObservationService
 {
     public function __construct(
         private readonly ObservationRepository $observations,
+        private readonly MapFeatureRepository $features,
         private readonly MediaRepository $media,
         private readonly SensorMeasurementRepository $sensors,
         private readonly TransactionManager $transactions,
@@ -42,6 +44,10 @@ final class ObservationService
         $dateErrors = \DateTimeImmutable::getLastErrors();
         if (false !== $dateErrors && ($dateErrors['warning_count'] > 0 || $dateErrors['error_count'] > 0)) {
             throw new BadRequestHttpException('Invalid creation date.');
+        }
+
+        if (null !== $input->parentFeatureId && !$this->features->exists($input->parentFeatureId)) {
+            throw new BadRequestHttpException('Unknown parent map feature.');
         }
 
         $payloadHash = hash('sha256', json_encode($input->toArray(), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
@@ -288,6 +294,7 @@ final class ObservationService
                 'surface' => $row['surface'],
             ],
             'comment' => (string) ($row['comment'] ?? ''),
+            'parentFeatureId' => $row['map_feature_id'],
             'photoIds' => array_map(
                 static fn (Media $media): string => $media->getId(),
                 $media ?? $this->media->findForObservation($observation),

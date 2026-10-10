@@ -387,16 +387,25 @@ test("rejects a feature that only partially overlaps an existing one", async ({
   ).toHaveCount(0);
 });
 
-test("opens a new observation at a long-pressed map point", async ({ page }) => {
+test("opens a new observation at a picked map point", async ({ page }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page
+    .getByRole("button", { name: "Beobachtung anlegen" })
+    .click();
+  await expect(
+    page.getByText(
+      "Wählen Sie einen Punkt auf der Karte, um dort eine Beobachtung anzulegen.",
+    ),
+  ).toBeVisible();
   const map = page.locator(".map");
   const bounds = await map.boundingBox();
   if (!bounds) throw new Error("Map is not visible");
 
-  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(750);
-  await page.mouse.up();
+  await page.mouse.click(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+  );
 
   await expect(page).toHaveURL(
     /\/observation\/new\?latitude=[^&]+&longitude=[^&]+/,
@@ -407,6 +416,111 @@ test("opens a new observation at a long-pressed map point", async ({ page }) => 
   await expect(
     page.getByText(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`),
   ).toBeVisible();
+});
+
+test("assigns an observation created inside a feature as its child", async ({
+  page,
+}) => {
+  await mockEmptyPublicApi(page);
+  const uploads: Record<string, any> = {};
+  await page.route("**/api/observations", (route) => {
+    if (route.request().method() === "POST") {
+      const payload = route.request().postDataJSON();
+      uploads[payload.comment] = payload;
+      return route.fulfill({
+        json: { id: payload.id, revision: payload.revision },
+      });
+    }
+    return route.fallback();
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  const map = page.locator(".map");
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Map is not visible");
+
+  await page.mouse.click(bounds.x + 200, bounds.y + 150);
+  await page.mouse.click(bounds.x + 420, bounds.y + 150);
+  await page.mouse.click(bounds.x + 310, bounds.y + 300);
+  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await expect(
+    page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
+  ).toBeVisible();
+
+  const details = page.getByRole("form", { name: "Flächendetails" });
+  await details.getByLabel("Name").fill("Hauptgebäude");
+  await details.getByRole("button", { name: "Änderungen speichern" }).click();
+  await page.getByRole("button", { name: "Flächendetails schließen" }).click();
+
+  // Saving refits the map to the drawn feature; wait for the animation to settle.
+  await page.waitForTimeout(800);
+  const polygonBox = await page
+    .locator(".leaflet-overlay-pane path")
+    .first()
+    .boundingBox();
+  if (!polygonBox) throw new Error("The drawn feature is not rendered");
+
+  // Picking a point inside the feature creates an observation there.
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page
+    .getByRole("button", { name: "Beobachtung anlegen" })
+    .click();
+  await page.mouse.click(
+    polygonBox.x + polygonBox.width / 2,
+    polygonBox.y + polygonBox.height / 2,
+  );
+  await expect(page).toHaveURL(
+    /\/observation\/new\?latitude=[^&]+&longitude=[^&]+/,
+  );
+  await expect(
+    page.getByRole("heading", { name: "Hauptgebäude", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Kommentar").fill("Eingangsbereich");
+  await page
+    .getByRole("button", { name: "Speichern", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/$/);
+
+  // An observation outside any feature stays unlinked. Saving the first
+  // observation zooms the map to its point, so the outside location is
+  // derived from the stored ring instead of another map press.
+  const [feature] = await readMapFeatures(page);
+  const ring: [number, number][] = feature.geometry.coordinates[0];
+  const positions = ring.slice(0, -1);
+  const latitudes = positions.map(([, latitude]) => latitude);
+  const latSpan = Math.max(...latitudes) - Math.min(...latitudes);
+  const centroidLongitude = positions.reduce(
+    (sum, [longitude]) => sum + longitude,
+    0,
+  ) / positions.length;
+  const outsideLatitude = Math.min(...latitudes) - latSpan - 1;
+  await page.goto(
+    `/observation/new?latitude=${outsideLatitude}&longitude=${centroidLongitude}`,
+  );
+  await page.getByLabel("Kommentar").fill("Draußen");
+  await page
+    .getByRole("button", { name: "Speichern", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/$/);
+
+  const [features, observations] = await Promise.all([
+    readMapFeatures(page),
+    readObservations(page),
+  ]);
+  expect(features).toHaveLength(1);
+  expect(observations).toHaveLength(2);
+  const inside = observations.find(({ comment }) => comment === "Eingangsbereich");
+  const outside = observations.find(({ comment }) => comment === "Draußen");
+  expect(inside?.parentFeatureId).toBe(features[0].id);
+  expect(outside?.parentFeatureId).toBeNull();
+
+  // The parent link travels to the server when the queue is synchronized.
+  await page.getByRole("button", { name: "Menü" }).click();
+  await page.getByRole("button", { name: "Synchronisieren" }).click();
+  await expect.poll(() => Object.keys(uploads).length).toBe(2);
+  expect(uploads["Eingangsbereich"].parentFeatureId).toBe(features[0].id);
+  expect(uploads["Draußen"].parentFeatureId).toBeNull();
 });
 
 async function readObservations(page: import("@playwright/test").Page) {
@@ -461,7 +575,18 @@ test("captures a fresh location, saves the questionnaire, and restores its marke
     accuracy: 5,
   });
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("link", { name: "Anlegen" }).click();
+  await page
+    .getByRole("button", { name: "Beobachtung anlegen" })
+    .click();
+  const map = page.locator(".map");
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Map is not visible");
+  // Offset from the center: the position marker sits there and swallows clicks.
+  await page.mouse.click(
+    bounds.x + bounds.width * 0.3,
+    bounds.y + bounds.height * 0.3,
+  );
+  await page.getByRole("button", { name: "Standort aktualisieren" }).click();
   await expect(page.getByText("52.521200, 13.405800")).toBeVisible();
   await expect(page.getByText("± 5 m")).toBeVisible();
   await page
@@ -706,7 +831,16 @@ test("mobile layout fits the viewport and keyboard can reach the questionnaire",
   // and open the menu with the keyboard.
   await page.keyboard.press("Tab");
   await page.keyboard.press("Enter");
-  await page.getByRole("link", { name: "Anlegen" }).click();
+  await page
+    .getByRole("button", { name: "Beobachtung anlegen" })
+    .click();
+  const map = page.locator(".map");
+  const bounds = await map.boundingBox();
+  if (!bounds) throw new Error("Map is not visible");
+  await page.mouse.click(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+  );
   await expect(
     page.getByRole("heading", { name: "Neuer Eintrag" }),
   ).toBeVisible();

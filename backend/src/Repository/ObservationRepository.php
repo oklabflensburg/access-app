@@ -31,14 +31,14 @@ final class ObservationRepository
                 location_accuracy_m, altitude_m, altitude_accuracy_m, heading_degrees,
                 speed_mps, location_timestamp_ms, wheelchair_accessible, ramp_available,
                 accessible_toilet, elevator_available, steps_at_entrance,
-                steps_count_is_minimum, surface, comment
+                steps_count_is_minimum, surface, comment, map_feature_id
             ) VALUES (
                 :id, :revision, :edit_token_hash, :payload_hash, FALSE, :captured_at,
                 ST_SetSRID(ST_MakePoint(:longitude, :latitude), 4326)::geography,
                 :location_accuracy_m, :altitude_m, :altitude_accuracy_m, :heading_degrees,
                 :speed_mps, :location_timestamp_ms, :wheelchair_accessible, :ramp_available,
                 :accessible_toilet, :elevator_available, :steps_at_entrance,
-                :steps_count_is_minimum, :surface, :comment
+                :steps_count_is_minimum, :surface, :comment, :map_feature_id
             ) ON CONFLICT (id) DO NOTHING
             SQL, [
             'id' => $input->id,
@@ -62,6 +62,7 @@ final class ObservationRepository
             'steps_count_is_minimum' => 3 === $input->accessibility->steps,
             'surface' => $input->accessibility->surface,
             'comment' => $input->comment,
+            'map_feature_id' => $input->parentFeatureId,
         ], [
             'wheelchair_accessible' => Types::BOOLEAN,
             'ramp_available' => Types::BOOLEAN,

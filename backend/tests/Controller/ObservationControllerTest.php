@@ -197,6 +197,71 @@ final class ObservationControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testObservationStoresAndReturnsItsParentMapFeature(): void
+    {
+        $client = static::createClient();
+        $featureId = $this->uuid();
+        $headers = ['HTTP_AUTHORIZATION' => 'Bearer '.$this->uuid()];
+
+        $client->jsonRequest('POST', '/api/map-features', [
+            'id' => $featureId,
+            'type' => 'building',
+            'name' => 'Main building',
+            'createdAt' => '2026-09-17T10:00:00.000Z',
+            'geometry' => [
+                'type' => 'Polygon',
+                'coordinates' => [[
+                    [13.40, 52.51],
+                    [13.41, 52.51],
+                    [13.41, 52.52],
+                    [13.40, 52.52],
+                    [13.40, 52.51],
+                ]],
+            ],
+        ], $headers);
+        self::assertResponseIsSuccessful();
+
+        $id = $this->uuid();
+        $payload = [...$this->payload($id), 'parentFeatureId' => $featureId];
+
+        $client->jsonRequest('POST', '/api/observations', $payload, $headers);
+        self::assertResponseIsSuccessful();
+
+        $client->request('GET', '/api/observations/'.$id);
+        self::assertResponseIsSuccessful();
+        self::assertSame($featureId, $this->responseData($client)['parentFeatureId']);
+
+        $client->request('GET', '/api/observations?bbox=13,52,14,53');
+        $summary = current(array_filter(
+            $this->responseData($client)['observations'],
+            static fn (array $observation): bool => $observation['id'] === $id,
+        ));
+        self::assertIsArray($summary);
+        self::assertSame($featureId, $summary['parentFeatureId']);
+
+        $client->jsonRequest('POST', '/api/observations', [
+            ...$payload,
+            'revision' => 2,
+            'parentFeatureId' => null,
+        ], $headers);
+        self::assertResponseIsSuccessful();
+        $client->request('GET', '/api/observations/'.$id);
+        self::assertNull($this->responseData($client)['parentFeatureId']);
+
+        $client->jsonRequest('POST', '/api/observations', [
+            ...$payload,
+            'revision' => 3,
+            'parentFeatureId' => $this->uuid(),
+        ], $headers);
+        self::assertResponseStatusCodeSame(400);
+
+        $client->jsonRequest('DELETE', '/api/observations/'.$id, ['revision' => 4], $headers);
+        self::assertResponseIsSuccessful();
+
+        static::getContainer()->get('doctrine.dbal.default_connection')
+            ->executeStatement('DELETE FROM map_features WHERE id = :id', ['id' => $featureId]);
+    }
+
     /** @return array<string, mixed> */
     private function payload(string $id): array
     {

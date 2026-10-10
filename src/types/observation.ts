@@ -23,6 +23,7 @@ export interface Observation {
   attempts?: number;
   nextRetryAt?: number;
   photoIds?: string[];
+  parentFeatureId?: string | null;
 }
 
 export interface Photo {

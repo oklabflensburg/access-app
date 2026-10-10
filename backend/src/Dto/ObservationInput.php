@@ -33,6 +33,8 @@ final readonly class ObservationInput
         #[Assert\Unique]
         #[Assert\All([new Assert\Uuid(versions: Assert\Uuid::V4_RANDOM)])]
         public array $photoIds = [],
+        #[Assert\Uuid(versions: Assert\Uuid::V4_RANDOM)]
+        public ?string $parentFeatureId = null,
         public ?array $noise = null,
         public ?array $motion = null,
         public ?array $light = null,
@@ -73,6 +75,7 @@ final readonly class ObservationInput
             'accessibility' => $this->accessibility->toArray(),
             'comment' => $this->comment,
             'photoIds' => $this->photoIds,
+            'parentFeatureId' => $this->parentFeatureId,
         ];
         if (null !== $this->noise) {
             $payload['noise'] = array_intersect_key(

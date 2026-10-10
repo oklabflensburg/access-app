@@ -129,6 +129,7 @@ final class Observation
         $this->stepsCountIsMinimum = 3 === $input->accessibility->steps;
         $this->surface = $input->accessibility->surface;
         $this->comment = $input->comment;
+        $this->mapFeatureId = $input->parentFeatureId;
         $this->updatedAt = new \DateTimeImmutable();
     }
 
@@ -185,6 +186,7 @@ final class Observation
             'steps_at_entrance' => $this->stepsAtEntrance,
             'surface' => $this->surface,
             'comment' => $this->comment,
+            'map_feature_id' => $this->mapFeatureId,
         ];
     }
 

@@ -23,25 +23,22 @@ const { t, locale } = useI18n();
         }}
       </dd>
     </div>
-    <div>
-      <dt>{{ t("location.altitude") }}</dt>
-      <dd>
-        {{
-          location.altitude === null
-            ? t("location.unavailable")
-            : `${Math.round(location.altitude)} m`
-        }}
-      </dd>
-    </div>
-    <div>
-      <dt>{{ t("location.captured") }}</dt>
-      <dd>
-        {{
-          location.timestamp === null
-            ? t("location.unavailable")
-            : new Date(location.timestamp).toLocaleString(locale)
-        }}
-      </dd>
-    </div>
   </dl>
+  <details class="location-extra">
+    <summary>{{ t("location.moreDetails") }}</summary>
+    <dl class="location-details">
+      <div>
+        <dt>{{ t("location.altitude") }}</dt>
+        <dd>
+          {{ location.altitude === null ? t("location.unavailable") : `${Math.round(location.altitude)} m` }}
+        </dd>
+      </div>
+      <div>
+        <dt>{{ t("location.captured") }}</dt>
+        <dd>
+          {{ location.timestamp === null ? t("location.unavailable") : new Date(location.timestamp).toLocaleString(locale) }}
+        </dd>
+      </div>
+    </dl>
+  </details>
 </template>

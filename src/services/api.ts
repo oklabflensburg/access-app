@@ -45,6 +45,7 @@ export function uploadObservation(o: Observation, sensors?: SensorData) {
       accessibility: o.accessibility,
       comment: o.comment,
       photoIds: o.photoIds ?? [],
+      parentFeatureId: o.parentFeatureId ?? null,
       ...measurements,
     }),
   });
