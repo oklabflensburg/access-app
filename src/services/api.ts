@@ -1,6 +1,6 @@
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
-import type { MapFeature } from "../types/map-feature";
+import type { MapFeature, PolygonGeometry } from "../types/map-feature";
 import type { RemoteRoutingPreferences, RoutingPreferences } from "../types/preferences";
 import type { RoutePoint, WalkingRoute } from "../types/routing";
 import { t } from "../i18n";
@@ -40,12 +40,13 @@ export function getWalkingRoute(
   start: RoutePoint,
   end: RoutePoint,
   wheelchairAccessible: boolean,
+  staircaseAreas: PolygonGeometry[],
   signal: AbortSignal,
 ) {
   return request<WalkingRoute>("/routes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ start, end, wheelchairAccessible }),
+    body: JSON.stringify({ start, end, wheelchairAccessible, staircaseAreas }),
     signal,
   });
 }

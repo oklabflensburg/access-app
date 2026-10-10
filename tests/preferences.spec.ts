@@ -3,7 +3,13 @@ import { expect, test, type Page } from "@playwright/test";
 test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
   await page.route("**/api/observations?*", route => route.fulfill({ json: { observations: [], nextCursor: null } }));
-  await page.route("**/api/map-features?*", route => route.fulfill({ json: { features: [] } }));
+  await page.route("**/api/map-features?*", route => route.fulfill({ json: { features: [{
+    id: "staircase-1",
+    type: "staircase",
+    name: "Steps",
+    createdAt: "2026-10-10T10:00:00.000Z",
+    geometry: { type: "Polygon", coordinates: [[[9.43, 54.78], [9.44, 54.78], [9.44, 54.79], [9.43, 54.78]]] },
+  }] } }));
 });
 
 function preference(wheelchairAccessible: boolean, revision: number) {
@@ -43,7 +49,7 @@ test("the wheelchair preference is saved locally, synced, and sent with route re
     uploads++;
     return route.fulfill({ json: remote });
   });
-  let routeBody: { wheelchairAccessible?: boolean } | undefined;
+  let routeBody: { wheelchairAccessible?: boolean; staircaseAreas?: unknown[] } | undefined;
   await page.route("**/api/routes", async route => {
     routeBody = route.request().postDataJSON();
     const { start, end } = routeBody;
@@ -76,6 +82,10 @@ test("the wheelchair preference is saved locally, synced, and sent with route re
   await clickPoint(page, 0.5, 0.75);
   await expect(page.getByText("Kürzester Fußweg: 1,23 km")).toBeVisible();
   expect(routeBody?.wheelchairAccessible).toBe(true);
+  expect(routeBody?.staircaseAreas).toEqual([{
+    type: "Polygon",
+    coordinates: [[[9.43, 54.78], [9.44, 54.78], [9.44, 54.79], [9.43, 54.78]]],
+  }]);
 
   await page.reload();
   const reloaded = await openPreferences(page);

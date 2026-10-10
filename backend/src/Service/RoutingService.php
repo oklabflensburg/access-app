@@ -34,18 +34,44 @@ final class RoutingService
             throw new RoutingFailure('identical_points', 400);
         }
 
+        $staircaseAreas = $input->wheelchairAccessible
+            ? $this->staircaseAreas($input->staircaseAreas)
+            : [];
+
+        $request = [
+            'points' => [
+                [$input->start->longitude, $input->start->latitude],
+                [$input->end->longitude, $input->end->latitude],
+            ],
+            'profile' => $input->wheelchairAccessible ? 'foot_wheelchair' : 'foot_shortest',
+            'points_encoded' => false,
+            'instructions' => false,
+            'elevation' => false,
+        ];
+        if ($staircaseAreas !== []) {
+            $areaFeatures = [];
+            $priority = [];
+            foreach ($staircaseAreas as $index => $area) {
+                $id = 'staircase_'.$index;
+                $areaFeatures[] = [
+                    'type' => 'Feature',
+                    'id' => $id,
+                    'properties' => new \stdClass(),
+                    'geometry' => $area,
+                ];
+                $priority[] = ['if' => 'in_'.$id, 'multiply_by' => '0'];
+            }
+            $request['custom_model'] = [
+                'areas' => ['type' => 'FeatureCollection', 'features' => $areaFeatures],
+                'priority' => $priority,
+            ];
+            // Request custom models use flexible routing rather than the precomputed CH graph.
+            $request['ch.disable'] = true;
+        }
+
         try {
             $response = $this->httpClient->request('POST', rtrim($this->baseUrl, '/').'/route', [
-                'json' => [
-                    'points' => [
-                        [$input->start->longitude, $input->start->latitude],
-                        [$input->end->longitude, $input->end->latitude],
-                    ],
-                    'profile' => $input->wheelchairAccessible ? 'foot_wheelchair' : 'foot_shortest',
-                    'points_encoded' => false,
-                    'instructions' => false,
-                    'elevation' => false,
-                ],
+                'json' => $request,
                 'timeout' => 15,
                 'max_duration' => 15,
             ]);
@@ -100,6 +126,39 @@ final class RoutingService
             'snappedStart' => ['latitude' => $start[1], 'longitude' => $start[0]],
             'snappedEnd' => ['latitude' => $end[1], 'longitude' => $end[0]],
         ];
+    }
+
+    /** @param list<mixed> $areas @return list<array{type: 'Polygon', coordinates: array{list<array{int|float, int|float}>}}> */
+    private function staircaseAreas(array $areas): array
+    {
+        if (count($areas) > 200) {
+            throw new RoutingFailure('invalid_input', 400);
+        }
+        $valid = [];
+        foreach ($areas as $area) {
+            if (!is_array($area) || 'Polygon' !== ($area['type'] ?? null)
+                || !is_array($area['coordinates'] ?? null) || !array_is_list($area['coordinates'])
+                || 1 !== count($area['coordinates'])) {
+                throw new RoutingFailure('invalid_input', 400);
+            }
+            $ring = $area['coordinates'][0];
+            if (!is_array($ring) || !array_is_list($ring) || count($ring) < 4 || count($ring) > 501) {
+                throw new RoutingFailure('invalid_input', 400);
+            }
+            foreach ($ring as $point) {
+                if (!is_array($point) || !array_is_list($point) || 2 !== count($point)
+                    || !$this->validNumber($point[0]) || !$this->validNumber($point[1])
+                    || abs($point[0]) > 180 || abs($point[1]) > 90) {
+                    throw new RoutingFailure('invalid_input', 400);
+                }
+            }
+            if ($ring[0] !== $ring[array_key_last($ring)]) {
+                throw new RoutingFailure('invalid_input', 400);
+            }
+            $valid[] = ['type' => 'Polygon', 'coordinates' => [$ring]];
+        }
+
+        return $valid;
     }
 
     private function validLineString(mixed $geometry): bool

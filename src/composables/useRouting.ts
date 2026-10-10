@@ -3,8 +3,9 @@ import { useI18n } from "vue-i18n";
 import { getWalkingRoute } from "../services/api";
 import { usePreferencesStore } from "../stores/preferences";
 import type { RoutePoint, WalkingRoute } from "../types/routing";
+import type { PolygonGeometry } from "../types/map-feature";
 
-export function useRouting() {
+export function useRouting(getStaircaseAreas: () => PolygonGeometry[]) {
   const { t } = useI18n();
   const preferences = usePreferencesStore();
   const active = ref(false);
@@ -66,6 +67,7 @@ export function useRouting() {
         start.value,
         end.value,
         preferences.wheelchairAccessible,
+        preferences.wheelchairAccessible ? getStaircaseAreas() : [],
         controller.signal,
       );
       if (pending === controller) result.value = route;

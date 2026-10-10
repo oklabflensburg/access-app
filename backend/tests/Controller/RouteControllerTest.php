@@ -64,6 +64,49 @@ final class RouteControllerTest extends WebTestCase
         self::assertResponseIsSuccessful();
     }
 
+    public function testWheelchairRouteBlocksProvidedStaircaseAreas(): void
+    {
+        $area = ['type' => 'Polygon', 'coordinates' => [[[9.43, 54.78], [9.44, 54.78], [9.44, 54.79], [9.43, 54.78]]]];
+        $client = static::createClient();
+        static::getContainer()->set('http_client', new MockHttpClient(function ($method, $url, $options) use ($area) {
+            $body = json_decode($options['body'], true);
+            self::assertSame('foot_wheelchair', $body['profile']);
+            self::assertTrue($body['ch.disable']);
+            self::assertSame([[
+                'type' => 'Feature',
+                'id' => 'staircase_0',
+                'properties' => [],
+                'geometry' => $area,
+            ]], $body['custom_model']['areas']['features']);
+            self::assertSame([['if' => 'in_staircase_0', 'multiply_by' => '0']], $body['custom_model']['priority']);
+
+            return self::routeResponse();
+        }));
+
+        $client->jsonRequest('POST', '/api/routes', self::INPUT + [
+            'wheelchairAccessible' => true,
+            'staircaseAreas' => [$area],
+        ]);
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testInvalidStaircaseAreaIsRejected(): void
+    {
+        $client = static::createClient();
+        $client->disableReboot();
+        static::getContainer()->set('http_client', new MockHttpClient(function () {
+            self::fail('Invalid staircase polygons must not reach GraphHopper.');
+        }));
+
+        $client->jsonRequest('POST', '/api/routes', self::INPUT + [
+            'wheelchairAccessible' => true,
+            'staircaseAreas' => [['type' => 'Polygon', 'coordinates' => [[[9, 54], [200, 54], [9, 55], [9, 54]]]]],
+        ]);
+
+        self::assertResponseStatusCodeSame(400);
+        self::assertSame('invalid_input', json_decode($client->getResponse()->getContent(), true)['code']);
+    }
+
     public function testInvalidInputNeverCallsTheEngine(): void
     {
         $client = static::createClient();

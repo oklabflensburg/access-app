@@ -19,15 +19,8 @@ const observations = useObservationStore();
 const router = useRouter();
 const route = useRoute();
 const mapStore = useMapStore();
-const routing = useRouting();
 const mapComponent = ref<InstanceType<typeof Map>>();
 const routingPanel = ref<InstanceType<typeof RoutingPanel>>();
-watch(routing.result, async (result) => {
-  if (!result) return;
-  await nextTick();
-  if (routing.result.value === result)
-    mapComponent.value?.fitRoute(routingPanel.value?.getHeight() ?? 0);
-});
 
 const { publicObservations, publicFeatures, publicError } = usePublicMapData();
 const {
@@ -42,6 +35,19 @@ const {
   createFeature,
   updateFeature,
 } = useMapFeatures(publicFeatures);
+
+const routing = useRouting(() =>
+  features.value
+    .filter((feature) => feature.type === "staircase")
+    .map((feature) => feature.geometry),
+);
+
+watch(routing.result, async (result) => {
+  if (!result) return;
+  await nextTick();
+  if (routing.result.value === result)
+    mapComponent.value?.fitRoute(routingPanel.value?.getHeight() ?? 0);
+});
 
 provide(mapFeaturesKey, features);
 

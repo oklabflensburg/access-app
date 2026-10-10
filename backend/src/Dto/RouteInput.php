@@ -15,6 +15,9 @@ final readonly class RouteInput
         public RoutePointInput $end,
         #[Assert\Type('bool')]
         public bool $wheelchairAccessible = false,
+        #[Assert\Type('array')]
+        #[Assert\Count(max: 200)]
+        public array $staircaseAreas = [],
     ) {
     }
 }
