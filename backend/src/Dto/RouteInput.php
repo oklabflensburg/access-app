@@ -13,6 +13,8 @@ final readonly class RouteInput
         public RoutePointInput $start,
         #[Assert\Valid]
         public RoutePointInput $end,
+        #[Assert\Type('bool')]
+        public bool $wheelchairAccessible = false,
     ) {
     }
 }

@@ -20,7 +20,11 @@ const subscription = liveQuery(() =>
       .where("syncStatus")
       .anyOf("ready", "failed", "syncing")
       .count(),
-  ]).then(([observations, features]) => observations + features),
+    database.preferences
+      .where("syncStatus")
+      .anyOf("ready", "failed", "syncing")
+      .count(),
+  ]).then(([observations, features, preferences]) => observations + features + preferences),
 ).subscribe({
   next: (count) => {
     pending.value = count;

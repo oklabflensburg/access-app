@@ -41,7 +41,7 @@ final class RoutingService
                         [$input->start->longitude, $input->start->latitude],
                         [$input->end->longitude, $input->end->latitude],
                     ],
-                    'profile' => 'foot_shortest',
+                    'profile' => $input->wheelchairAccessible ? 'foot_wheelchair' : 'foot_shortest',
                     'points_encoded' => false,
                     'instructions' => false,
                     'elevation' => false,

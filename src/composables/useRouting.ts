@@ -1,10 +1,12 @@
 import { computed, onBeforeUnmount, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { getWalkingRoute } from "../services/api";
+import { usePreferencesStore } from "../stores/preferences";
 import type { RoutePoint, WalkingRoute } from "../types/routing";
 
 export function useRouting() {
   const { t } = useI18n();
+  const preferences = usePreferencesStore();
   const active = ref(false);
   const picking = ref<"start" | "end" | null>(null);
   const start = ref<RoutePoint | null>(null);
@@ -60,7 +62,12 @@ export function useRouting() {
     pending = controller;
     loading.value = true;
     try {
-      const route = await getWalkingRoute(start.value, end.value, controller.signal);
+      const route = await getWalkingRoute(
+        start.value,
+        end.value,
+        preferences.wheelchairAccessible,
+        controller.signal,
+      );
       if (pending === controller) result.value = route;
     } catch (cause) {
       if (pending === controller && !controller.signal.aborted)

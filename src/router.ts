@@ -3,6 +3,7 @@ import MapView from "./views/MapView.vue";
 import ObservationDialogView from "./views/EditObservationDialogView.vue";
 import MyObservationsView from "./views/MyObservationsView.vue";
 import MyMapFeaturesView from "./views/MyMapFeaturesView.vue";
+import PreferencesView from "./views/PreferencesView.vue";
 
 export default createRouter({
   history: createWebHistory(),
@@ -26,6 +27,11 @@ export default createRouter({
           path: "map-features",
           name: "my-map-features",
           component: MyMapFeaturesView,
+        },
+        {
+          path: "preferences",
+          name: "preferences",
+          component: PreferencesView,
         },
         {
           path: "observation/:id/edit",

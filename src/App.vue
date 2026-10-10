@@ -4,6 +4,7 @@ import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { useSyncStore } from "./stores/sync";
 import { useLocationStore } from "./stores/location";
 import { useMapStore } from "./stores/map";
+import { usePreferencesStore } from "./stores/preferences";
 import { useI18n } from "vue-i18n";
 import SyncPanel from "./components/SyncPanel.vue";
 import PwaStatus from "./components/PwaStatus.vue";
@@ -12,6 +13,7 @@ import type { FeatureDrawingMode } from "./types/map-feature";
 const sync = useSyncStore();
 const location = useLocationStore();
 const map = useMapStore();
+const preferences = usePreferencesStore();
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
@@ -46,6 +48,8 @@ async function startRouting() {
 let stop: (() => void) | undefined;
 onMounted(() => {
   stop = sync.start();
+  void preferences.load();
+  if (navigator.onLine) void preferences.refresh();
 });
 onBeforeUnmount(() => stop?.());
 </script>
@@ -89,6 +93,9 @@ onBeforeUnmount(() => stop?.());
       <button type="button" class="menu-action" @click="startRouting">
         <i class="pi pi-directions" aria-hidden="true" /> {{ t("routing.title") }}
       </button>
+      <RouterLink to="/preferences" @click="menuOpen = false">
+        <i class="pi pi-cog" aria-hidden="true" /> {{ t("navigation.preferences") }}
+      </RouterLink>
     </nav>
     <button
       v-if="mapVisible"

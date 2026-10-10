@@ -52,6 +52,18 @@ final class RouteControllerTest extends WebTestCase
         self::assertSame(['latitude' => 54.7901, 'longitude' => 9.4401], $data['snappedEnd']);
     }
 
+    public function testWheelchairPreferenceUsesTheWheelchairProfile(): void
+    {
+        $client = static::createClient();
+        static::getContainer()->set('http_client', new MockHttpClient(function ($method, $url, $options) {
+            self::assertSame('foot_wheelchair', json_decode($options['body'], true)['profile']);
+            return self::routeResponse();
+        }));
+
+        $client->jsonRequest('POST', '/api/routes', self::INPUT + ['wheelchairAccessible' => true]);
+        self::assertResponseIsSuccessful();
+    }
+
     public function testInvalidInputNeverCallsTheEngine(): void
     {
         $client = static::createClient();

@@ -58,7 +58,10 @@ try {
   assert(shortest.points.coordinates.every(([, lat]) => Math.abs(lat - 54.78) < 0.00001));
   assert(fastest.points.coordinates.some(([, lat]) => lat > 54.7805), "Expected the faster footway detour");
   assert(shortest.distance < fastest.distance, "The production profile must minimize distance, not time");
-  console.log(`Routing profile passed: shortest ${shortest.distance} m; fastest walking detour ${fastest.distance} m.`);
+  const wheelchair = await route({ profile: "foot_wheelchair" });
+  assert(wheelchair.points.coordinates.some(([, lat]) => lat > 54.7805), "Expected the wheelchair profile to avoid the stairs");
+  assert(wheelchair.distance > shortest.distance, "The wheelchair profile must detour around steps");
+  console.log(`Routing profile passed: shortest ${shortest.distance} m; fastest walking detour ${fastest.distance} m; wheelchair detour ${wheelchair.distance} m.`);
 
   // Only this temporary fixture container is affected. --help runs the
   // entrypoint's backup logic without starting a second GraphHopper server.

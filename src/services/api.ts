@@ -1,6 +1,7 @@
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
 import type { MapFeature } from "../types/map-feature";
+import type { RemoteRoutingPreferences, RoutingPreferences } from "../types/preferences";
 import type { RoutePoint, WalkingRoute } from "../types/routing";
 import { t } from "../i18n";
 
@@ -35,11 +36,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 }
 
-export function getWalkingRoute(start: RoutePoint, end: RoutePoint, signal: AbortSignal) {
+export function getWalkingRoute(
+  start: RoutePoint,
+  end: RoutePoint,
+  wheelchairAccessible: boolean,
+  signal: AbortSignal,
+) {
   return request<WalkingRoute>("/routes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ start, end }),
+    body: JSON.stringify({ start, end, wheelchairAccessible }),
     signal,
   });
 }
@@ -120,4 +126,19 @@ export function removeRemoteMapFeature(feature: MapFeature) {
 
 export function getPublicMapFeatures() {
   return request<{ features: MapFeature[] }>("/map-features?limit=200");
+}
+
+export function fetchRoutingPreferences() {
+  return request<RemoteRoutingPreferences & { id: string }>("/preferences/routing");
+}
+
+export function uploadRoutingPreferences(prefs: RoutingPreferences) {
+  return request<RemoteRoutingPreferences & { id: string }>("/preferences/routing", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      wheelchairAccessible: prefs.wheelchairAccessible,
+      revision: prefs.revision,
+    }),
+  });
 }

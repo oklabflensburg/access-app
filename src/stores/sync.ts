@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref } from "vue";
 import { syncObservations } from "../services/sync";
 import { useObservationStore } from "./observation";
+import { usePreferencesStore } from "./preferences";
 import { t } from "../i18n";
 export const useSyncStore = defineStore("sync", () => {
   const online = ref(navigator.onLine);
@@ -35,6 +36,7 @@ export const useSyncStore = defineStore("sync", () => {
     } finally {
       busy.value = false;
       await useObservationStore().load();
+      await usePreferencesStore().load();
     }
   }
   function start() {

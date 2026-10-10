@@ -59,10 +59,12 @@ local or production environment settings with
 routing image and preserves the existing extract automatically. No database
 migration is required.
 
-`POST /api/routes` accepts `start` and `end` objects with `latitude`/`longitude`.
-It returns `geometry` (GeoJSON LineString, longitude first), `distanceMeters`,
+`POST /api/routes` accepts `start` and `end` objects with `latitude`/`longitude`,
+plus an optional `wheelchairAccessible` flag (default `false`). When the flag is
+set, the backend uses the `foot_wheelchair` profile, which additionally blocks
+steps. It returns `geometry` (GeoJSON LineString, longitude first), `distanceMeters`,
 `snappedStart`, and `snappedEnd`. The backend calls GraphHopper's internal
-`POST /route` with the `foot_shortest` profile and unencoded GeoJSON coordinates.
+`POST /route` with the selected profile and unencoded GeoJSON coordinates.
 It validates the snapped waypoints and rejects either endpoint more than
 100 metres from its requested location. Distance excludes the connection from clicked
 coordinates to the snapped walking network. No route data is persisted.
@@ -75,7 +77,10 @@ permitted edges, with zero distance influence and no turn penalties. Its weights
 are therefore proportional to distance, not estimated walking time. Standard
 pedestrian access restrictions still apply; mountain-hiking paths and German
 bridleways without explicit pedestrian permission are excluded. Steps are
-allowed: this is not an accessible/wheelchair routing profile. The API exposes
+allowed in the `foot_shortest` profile; the `foot_wheelchair` profile blocks
+them. Wheelchair routing is an approximation from built-in encoded values: the
+OSM `wheelchair` tag would need a custom encoded value and therefore a custom
+GraphHopper build. The API exposes
 distance only, not the synthetic travel time. Collected observations and custom
 accessibility rules are not applied yet.
 

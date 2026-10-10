@@ -28,6 +28,7 @@ Stop the backend without removing saved data using `(cd backend && docker compos
 7. In **My observations**, edit or delete local records. Deleting removes local photos and measurements immediately and queues public deletion.
 8. **Share & sync now** publishes all ready observations, polygons, and pending deletions. Automatic sharing is off by default; enabling it retries queued changes while the app is open.
 9. The map fetches up to 200 public observations and 200 public polygon features. Locally stored records take precedence.
+10. **Routing preferences** in the menu toggles preferring wheelchair-accessible ways: routes then avoid steps where a detour exists. The preference is stored locally first, synchronized like observations and polygons, and — until user accounts exist — applies globally to all devices.
 
 ## Offline PWA
 

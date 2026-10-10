@@ -51,7 +51,7 @@ services:
       - ./routing/data:/data/osm:ro
       - graphhopper_graphs:/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8989/info | grep -q '\"name\":\"foot_shortest\"'"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8989/info | grep -q '\"name\":\"foot_shortest\"' && curl -fsS http://localhost:8989/info | grep -q '\"name\":\"foot_wheelchair\"'"]
       interval: 15s
       timeout: 5s
       start_period: 10m

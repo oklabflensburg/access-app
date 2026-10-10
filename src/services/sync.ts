@@ -1,10 +1,12 @@
-import { database } from "./storage";
+import { database, adoptRemoteRoutingPreferences } from "./storage";
 import {
+  fetchRoutingPreferences,
   removeRemoteObservation,
   removeRemoteMapFeature,
   uploadMapFeature,
   uploadObservation,
   uploadPhoto,
+  uploadRoutingPreferences,
 } from "./api";
 import type { Observation } from "../types/observation";
 import { t } from "../i18n";
@@ -136,6 +138,48 @@ async function runQueue(force: boolean) {
           cause instanceof Error
             ? cause.message
             : t("errors.upload"),
+      });
+      result.failed++;
+    }
+  }
+  const preferenceQueue = await database.preferences
+    .where("syncStatus")
+    .anyOf("ready", "failed", "syncing")
+    .toArray();
+  for (const prefs of preferenceQueue) {
+    if (!navigator.onLine) break;
+    if (!force && (prefs.nextRetryAt ?? 0) > Date.now()) continue;
+    try {
+      await database.preferences.update(prefs.id, {
+        syncStatus: "syncing",
+        lastError: "",
+      });
+      const ack = await uploadRoutingPreferences(prefs);
+      if (ack.revision !== prefs.revision)
+        throw new Error(t("errors.remoteConflict"));
+      await database.preferences.update(prefs.id, {
+        syncStatus: "synced",
+        attempts: 0,
+        nextRetryAt: 0,
+        lastError: "",
+      });
+      result.synced++;
+    } catch (cause) {
+      try {
+        // The preference is global: if the server moved on, its value wins.
+        const remote = await fetchRoutingPreferences();
+        if (await adoptRemoteRoutingPreferences(remote)) continue;
+      } catch {
+        /* Offline or unavailable: retry with backoff below. */
+      }
+      const attempts = (prefs.attempts ?? 0) + 1;
+      await database.preferences.update(prefs.id, {
+        syncStatus: "failed",
+        attempts,
+        nextRetryAt:
+          Date.now() + Math.min(300000, 5000 * 2 ** Math.min(attempts, 6)),
+        lastError:
+          cause instanceof Error ? cause.message : t("errors.upload"),
       });
       result.failed++;
     }

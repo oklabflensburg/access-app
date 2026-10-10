@@ -45,6 +45,13 @@ export const messages = {
       createObservation: "Beobachtung anlegen",
       myObjects: "Meine Objekte",
       myObservations: "Meine Beobachtungen",
+      preferences: "Routeneinstellungen",
+    },
+    preferences: {
+      title: "Routeneinstellungen",
+      wheelchair: "Rollstuhlgerechte Wege bevorzugen",
+      wheelchairHint: "Routen vermeiden Treppen, wo eine Umgehung möglich ist.",
+      saveHint: "Wird lokal gespeichert und später synchronisiert. Die Einstellung gilt derzeit geräteübergreifend für alle Nutzer.",
     },
     map: {
       title: "Karte",
@@ -278,6 +285,7 @@ export const messages = {
       localPhotoMissing: "Ein lokales Foto fehlt.",
       photoAcknowledgement: "Foto konnte nicht bestätigt werden.",
       areaAcknowledgement: "Die Fläche konnte nicht bestätigt werden.",
+      preferences: "Einstellungen konnten nicht gespeichert werden.",
       upload: "Upload fehlgeschlagen.",
     },
   },

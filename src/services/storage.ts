@@ -2,6 +2,11 @@ import Dexie, { type Table } from "dexie";
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
 import { mapFeatureTypes, type MapFeature, type MapFeatureType } from "../types/map-feature";
+import {
+  routingPreferencesId,
+  type RemoteRoutingPreferences,
+  type RoutingPreferences,
+} from "../types/preferences";
 import { t } from "../i18n";
 
 class ObservationDatabase extends Dexie {
@@ -9,6 +14,7 @@ class ObservationDatabase extends Dexie {
   photos!: Table<Photo, string>;
   sensors!: Table<SensorData, string>;
   mapFeatures!: Table<MapFeature, string>;
+  preferences!: Table<RoutingPreferences, string>;
   constructor() {
     super("accessapp");
     this.version(1).stores({
@@ -16,6 +22,9 @@ class ObservationDatabase extends Dexie {
       photos: "id, observationId",
       sensors: "observationId",
       mapFeatures: "id, createdAt, syncStatus",
+    });
+    this.version(2).stores({
+      preferences: "id, updatedAt, syncStatus",
     });
   }
 }
@@ -198,4 +207,58 @@ export async function deleteObservation(id: string) {
       await database.sensors.delete(id);
     },
   );
+}
+
+export async function getRoutingPreferences(): Promise<RoutingPreferences> {
+  const stored = await database.preferences.get(routingPreferencesId);
+  return (
+    stored ?? {
+      id: routingPreferencesId,
+      wheelchairAccessible: false,
+      revision: 0,
+      updatedAt: new Date(0).toISOString(),
+      syncStatus: "synced",
+      attempts: 0,
+      nextRetryAt: 0,
+      lastError: "",
+    }
+  );
+}
+
+export async function saveRoutingPreferences(
+  wheelchairAccessible: boolean,
+): Promise<RoutingPreferences> {
+  const current = await getRoutingPreferences();
+  const updated: RoutingPreferences = {
+    ...current,
+    wheelchairAccessible,
+    revision: current.revision + 1,
+    updatedAt: new Date().toISOString(),
+    syncStatus: "ready",
+    attempts: 0,
+    nextRetryAt: 0,
+    lastError: "",
+  };
+  await database.preferences.put(updated);
+  return updated;
+}
+
+// The routing preference is global. When the server is at least at the local
+// revision, its value wins and replaces any pending local change.
+export async function adoptRemoteRoutingPreferences(
+  remote: RemoteRoutingPreferences,
+): Promise<boolean> {
+  const local = await getRoutingPreferences();
+  if (remote.revision < local.revision) return false;
+  await database.preferences.put({
+    id: routingPreferencesId,
+    wheelchairAccessible: remote.wheelchairAccessible,
+    revision: remote.revision,
+    updatedAt: remote.updatedAt,
+    syncStatus: "synced",
+    attempts: 0,
+    nextRetryAt: 0,
+    lastError: "",
+  });
+  return true;
 }
