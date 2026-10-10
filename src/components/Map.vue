@@ -40,9 +40,7 @@ let locationLayer: L.LayerGroup;
 let featureLayer: L.LayerGroup;
 let drawingLayer: L.LayerGroup;
 let resizeObserver: ResizeObserver | undefined;
-let longPressTimer: ReturnType<typeof setTimeout> | undefined;
-let longPressPoint: L.LatLng | undefined;
-const longPressDelay = 700;
+const pickingPoint = ref(false);
 
 const {
   drawing,
@@ -65,31 +63,22 @@ const {
   createFeature: (feature) => emit("createFeature", feature),
 });
 
-function cancelLongPress() {
-  if (longPressTimer !== undefined) clearTimeout(longPressTimer);
-  longPressTimer = undefined;
-  longPressPoint = undefined;
-}
+let pointPickedThisClick = false;
 
-function startLongPress(event: L.LeafletEvent) {
-  if (drawing.value) return;
-  if (!hasMapPoint(event)) return;
-  cancelLongPress();
-  longPressPoint = event.latlng;
-  longPressTimer = setTimeout(() => {
-    if (!longPressPoint) return;
-    emit("selectLocation", {
-      latitude: longPressPoint.lat,
-      longitude: longPressPoint.lng,
-      accuracy: null,
-      altitude: null,
-      altitudeAccuracy: null,
-      heading: null,
-      speed: null,
-      timestamp: Date.now(),
-    });
-    cancelLongPress();
-  }, longPressDelay);
+function pickObservationPoint(event: L.LeafletEvent) {
+  if (!pickingPoint.value || !hasMapPoint(event)) return;
+  pickingPoint.value = false;
+  pointPickedThisClick = true;
+  emit("selectLocation", {
+    latitude: event.latlng.lat,
+    longitude: event.latlng.lng,
+    accuracy: null,
+    altitude: null,
+    altitudeAccuracy: null,
+    heading: null,
+    speed: null,
+    timestamp: Date.now(),
+  });
 }
 
 function selectFeatureAtPoint(point: L.LatLng) {
@@ -116,7 +105,12 @@ function selectFeatureAtPoint(point: L.LatLng) {
 }
 
 function selectFeatureOnMapClick(event: L.LeafletEvent) {
-  if (drawing.value || choosingParent.value || !hasMapPoint(event)) return;
+  if (pointPickedThisClick) {
+    pointPickedThisClick = false;
+    return;
+  }
+  if (drawing.value || choosingParent.value || pickingPoint.value || !hasMapPoint(event))
+    return;
   selectFeatureAtPoint(event.latlng);
 }
 
@@ -255,9 +249,7 @@ onMounted(() => {
   featureLayer = L.layerGroup().addTo(map);
   observationLayer = L.layerGroup().addTo(map);
   drawingLayer = L.layerGroup().addTo(map);
-  map.on("mousedown", startLongPress);
-  map.on("touchstart", startLongPress);
-  map.on("mouseup touchend touchcancel dragstart move", cancelLongPress);
+  map.on("click", pickObservationPoint);
   map.on("click", addVertex);
   map.on("click", selectFeatureOnMapClick);
   drawLocation();
@@ -270,11 +262,14 @@ watch(() => props.location, drawLocation);
 watch(() => props.observations, drawObservations, { deep: true });
 watch(() => props.features, drawFeatures, { deep: true });
 watch(() => mapStore.drawRequest, () => {
-  cancelLongPress();
+  pickingPoint.value = false;
   startDrawing(mapStore.drawMode);
 });
+watch(() => mapStore.pickPointRequest, () => {
+  cancelDrawing();
+  pickingPoint.value = true;
+});
 onBeforeUnmount(() => {
-  cancelLongPress();
   resizeObserver?.disconnect();
   map?.remove();
 });
@@ -285,8 +280,15 @@ onBeforeUnmount(() => {
     <div
       ref="container"
       class="map"
+      :class="{ 'map--picking': pickingPoint }"
       :aria-label="t('map.mapHelp')"
     />
+    <div v-if="pickingPoint" class="drawing-controls" role="group" :aria-label="t('map.pickPointControls')">
+      <p class="drawing-instruction">{{ t("map.pickObservationPoint") }}</p>
+      <button type="button" class="secondary" @click="pickingPoint = false">
+        {{ t("map.cancelPicking") }}
+      </button>
+    </div>
     <div v-if="drawing || choosingParent" class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
 
       <p v-if="choosingParent" class="drawing-instruction">{{ t("map.chooseParent") }}</p>

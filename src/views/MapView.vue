@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from "vue";
+import { computed, onMounted, provide } from "vue";
 import { RouterView, useRouter } from "vue-router";
 import Message from "primevue/message";
 import Map from "../components/Map.vue";
@@ -8,6 +8,7 @@ import { usePublicMapData } from "../composables/usePublicMapData";
 import { useMapFeatures } from "../composables/useMapFeatures";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
+import { mapFeaturesKey } from "../injectionKeys";
 import type { LocationData } from "../types/location";
 
 const location = useLocationStore();
@@ -27,6 +28,8 @@ const {
   createFeature,
   updateFeature,
 } = useMapFeatures(publicFeatures);
+
+provide(mapFeaturesKey, features);
 
 const markers = computed(() => {
   const localIds = new Set(observations.observations.map((o) => o.id));

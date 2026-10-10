@@ -23,6 +23,14 @@ final class MapFeatureRepository
             SQL, ['geometry' => $geometry]);
     }
 
+    public function exists(string $id): bool
+    {
+        return (bool) $this->connection->fetchOne(
+            'SELECT 1 FROM map_features WHERE id = :id',
+            ['id' => $id],
+        );
+    }
+
     public function isContainedBy(string $geometry, string $parentId): bool
     {
         return (bool) $this->connection->fetchOne(<<<'SQL'

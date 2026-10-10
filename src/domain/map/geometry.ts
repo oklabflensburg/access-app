@@ -193,3 +193,21 @@ export function detectParentFeature(
   }
   return { parent: null, conflict: overlapping[0] ?? null };
 }
+
+export function detectParentFeatureForPoint(
+  latitude: number,
+  longitude: number,
+  features: MapFeature[],
+): MapFeature | null {
+  const point = L.latLng(latitude, longitude);
+  const containers = features.filter((feature) => containsPoint(feature, point));
+  if (!containers.length) return null;
+  return containers.reduce((best, candidate) => {
+    const depthDelta = featureDepth(candidate, features) - featureDepth(best, features);
+    if (depthDelta > 0) return candidate;
+    if (depthDelta === 0
+      && ringArea(openRing(candidate.geometry.coordinates[0]))
+        < ringArea(openRing(best.geometry.coordinates[0]))) return candidate;
+    return best;
+  });
+}

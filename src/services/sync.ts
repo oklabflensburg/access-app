@@ -28,58 +28,6 @@ async function runQueue(force: boolean) {
   if (!navigator.onLine)
     throw new Error(t("errors.offline"));
   // A terminated tab can leave a row in syncing. The cross-tab lock makes recovery safe.
-  const queue = await database.observations
-    .where("syncStatus")
-    .anyOf("ready", "failed", "syncing")
-    .toArray();
-  for (const o of queue) {
-    if (!navigator.onLine) break;
-    if (!force && (o.nextRetryAt ?? 0) > Date.now()) continue;
-    try {
-      await updateIfCurrent(o, { syncStatus: "syncing", lastError: "" });
-      if (o.deleted) {
-        const ack = await removeRemoteObservation(o);
-        if (ack.id !== o.id || ack.revision !== o.revision)
-          throw new Error(t("errors.deleteAcknowledgement"));
-      } else {
-        const [sensors, photos] = await Promise.all([
-          database.sensors.get(o.id),
-          database.photos.where("observationId").equals(o.id).toArray(),
-        ]);
-        const ack = await uploadObservation(o, sensors);
-        if (ack.id !== o.id || ack.revision !== o.revision)
-          throw new Error(t("errors.remoteConflict"));
-        for (const id of o.photoIds ?? []) {
-          const photo = photos.find((p) => p.id === id);
-          if (!photo)
-            throw new Error(t("errors.localPhotoMissing"));
-          const photoAck = await uploadPhoto(o, photo);
-          if (photoAck.id !== id)
-            throw new Error(t("errors.photoAcknowledgement"));
-        }
-      }
-      await updateIfCurrent(o, {
-        syncStatus: "synced",
-        attempts: 0,
-        nextRetryAt: 0,
-        lastError: "",
-      });
-      result.synced++;
-    } catch (cause) {
-      const attempts = (o.attempts ?? 0) + 1;
-      await updateIfCurrent(o, {
-        syncStatus: "failed",
-        attempts,
-        nextRetryAt:
-          Date.now() + Math.min(300000, 5000 * 2 ** Math.min(attempts, 6)),
-        lastError:
-          cause instanceof Error
-            ? cause.message
-            : t("errors.upload"),
-      });
-      result.failed++;
-    }
-  }
   const featureQueue = await database.mapFeatures
     .where("syncStatus")
     .anyOf("ready", "failed", "syncing")
@@ -135,6 +83,59 @@ async function runQueue(force: boolean) {
           Date.now() + Math.min(300000, 5000 * 2 ** Math.min(attempts, 6)),
         lastError:
           cause instanceof Error ? cause.message : t("errors.upload"),
+      });
+      result.failed++;
+    }
+  }
+  // Observations reference their map feature, so features are published first.
+  const queue = await database.observations
+    .where("syncStatus")
+    .anyOf("ready", "failed", "syncing")
+    .toArray();
+  for (const o of queue) {
+    if (!navigator.onLine) break;
+    if (!force && (o.nextRetryAt ?? 0) > Date.now()) continue;
+    try {
+      await updateIfCurrent(o, { syncStatus: "syncing", lastError: "" });
+      if (o.deleted) {
+        const ack = await removeRemoteObservation(o);
+        if (ack.id !== o.id || ack.revision !== o.revision)
+          throw new Error(t("errors.deleteAcknowledgement"));
+      } else {
+        const [sensors, photos] = await Promise.all([
+          database.sensors.get(o.id),
+          database.photos.where("observationId").equals(o.id).toArray(),
+        ]);
+        const ack = await uploadObservation(o, sensors);
+        if (ack.id !== o.id || ack.revision !== o.revision)
+          throw new Error(t("errors.remoteConflict"));
+        for (const id of o.photoIds ?? []) {
+          const photo = photos.find((p) => p.id === id);
+          if (!photo)
+            throw new Error(t("errors.localPhotoMissing"));
+          const photoAck = await uploadPhoto(o, photo);
+          if (photoAck.id !== id)
+            throw new Error(t("errors.photoAcknowledgement"));
+        }
+      }
+      await updateIfCurrent(o, {
+        syncStatus: "synced",
+        attempts: 0,
+        nextRetryAt: 0,
+        lastError: "",
+      });
+      result.synced++;
+    } catch (cause) {
+      const attempts = (o.attempts ?? 0) + 1;
+      await updateIfCurrent(o, {
+        syncStatus: "failed",
+        attempts,
+        nextRetryAt:
+          Date.now() + Math.min(300000, 5000 * 2 ** Math.min(attempts, 6)),
+        lastError:
+          cause instanceof Error
+            ? cause.message
+            : t("errors.upload"),
       });
       result.failed++;
     }

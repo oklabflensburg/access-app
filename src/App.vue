@@ -26,6 +26,14 @@ async function startDrawing() {
   map.requestDrawing();
   menuOpen.value = false;
 }
+async function startObservationCreation() {
+  if (route.name !== "map") {
+    await router.push({ name: "map" });
+    await nextTick();
+  }
+  map.requestObservationPoint();
+  menuOpen.value = false;
+}
 let stop: (() => void) | undefined;
 onMounted(() => {
   stop = sync.start();
@@ -58,9 +66,9 @@ onBeforeUnmount(() => stop?.());
       </section>
       <section class="menu-group" :aria-labelledby="'observations-menu-heading'">
         <h2 id="observations-menu-heading" class="menu-heading">{{ t("navigation.observations") }}</h2>
-        <RouterLink to="/observation/new" @click="menuOpen = false">
-          <i class="pi pi-plus" aria-hidden="true" /> {{ t("navigation.create") }}
-        </RouterLink>
+        <button type="button" class="menu-action" @click="startObservationCreation">
+          <i class="pi pi-plus" aria-hidden="true" /> {{ t("navigation.createObservation") }}
+        </button>
         <RouterLink to="/observations" @click="menuOpen = false">
           <i class="pi pi-list" aria-hidden="true" /> {{ t("navigation.myObservations") }}
         </RouterLink>
