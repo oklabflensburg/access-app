@@ -3,15 +3,16 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import L from "leaflet";
 import type { LocationData } from "../types/location";
 import type { Observation } from "../types/observation";
-import {
-  mapFeatureTypes,
-  type MapFeature,
-  type MapFeatureType,
-  type PolygonGeometry,
-  type PolygonPosition,
+import type {
+  MapFeature,
+  MapFeatureType,
+  PolygonGeometry,
 } from "../types/map-feature";
 import { useI18n } from "vue-i18n";
 import { useMapStore } from "../stores/map";
+import { useFeatureDrawing } from "../composables/useFeatureDrawing";
+import { hasMapPoint } from "../domain/map/events";
+import { containsPoint, featureDepth } from "../domain/map/geometry";
 
 const props = defineProps<{
   location: LocationData | null;
@@ -29,15 +30,6 @@ const { t } = useI18n();
 const mapStore = useMapStore();
 const container = ref<HTMLDivElement>();
 const tileError = ref(false);
-const drawing = ref(false);
-const choosingParent = ref(false);
-const parentFeature = ref<MapFeature | null>(null);
-const prospectiveParent = ref<MapFeature | null>(null);
-const vertices = ref<L.LatLng[]>([]);
-const drawingError = ref("");
-const featureName = ref("");
-const featureType = ref<MapFeatureType>("area");
-const longPressDelay = 700;
 let lastFeatureClickPoint: L.Point | undefined;
 let lastFeatureClickIds: string[] = [];
 let featureClickIndex = -1;
@@ -50,11 +42,28 @@ let drawingLayer: L.LayerGroup;
 let resizeObserver: ResizeObserver | undefined;
 let longPressTimer: ReturnType<typeof setTimeout> | undefined;
 let longPressPoint: L.LatLng | undefined;
-type MapPointEvent = L.LeafletEvent & { latlng: L.LatLng };
+const longPressDelay = 700;
 
-function hasMapPoint(event: L.LeafletEvent): event is MapPointEvent {
-  return "latlng" in event;
-}
+const {
+  drawing,
+  choosingParent,
+  parentFeature,
+  prospectiveParent,
+  vertices,
+  drawingError,
+  featureLabel,
+  addVertex,
+  startDrawing,
+  chooseParent,
+  undoVertex,
+  cancelDrawing,
+  finishDrawing,
+} = useFeatureDrawing({
+  features: () => props.features,
+  map: () => map,
+  drawingLayer: () => drawingLayer,
+  createFeature: (feature) => emit("createFeature", feature),
+});
 
 function cancelLongPress() {
   if (longPressTimer !== undefined) clearTimeout(longPressTimer);
@@ -83,244 +92,11 @@ function startLongPress(event: L.LeafletEvent) {
   }, longPressDelay);
 }
 
-function renderDrawing() {
-  drawingLayer.clearLayers();
-  if (!vertices.value.length) return;
-  L.polyline(vertices.value, {
-    color: "#a34612",
-    weight: 4,
-    dashArray: "7 6",
-  }).addTo(drawingLayer);
-  vertices.value.forEach((point, index) =>
-    L.circleMarker(point, {
-      radius: index === 0 ? 8 : 6,
-      color: "#fff",
-      weight: 2,
-      fillColor: "#a34612",
-      fillOpacity: 1,
-    }).addTo(drawingLayer),
-  );
-}
-
-function addVertex(event: L.LeafletEvent) {
-  if (!drawing.value || !hasMapPoint(event) || vertices.value.length >= 500)
-    return;
-  if (parentFeature.value && !containsPoint(parentFeature.value, event.latlng)) {
-    drawingError.value = t("map.pointOutsideParent");
-    return;
-  }
-  vertices.value = [...vertices.value, event.latlng];
-  drawingError.value = "";
-  renderDrawing();
-  updateDrawingHints();
-}
-
-function startDrawing(mode: "feature" | "child" = "feature") {
-  cancelLongPress();
-  choosingParent.value = mode === "child";
-  drawing.value = mode === "feature";
-  parentFeature.value = null;
-  prospectiveParent.value = null;
-  vertices.value = [];
-  drawingError.value = "";
-  featureName.value = "";
-  featureType.value = "area";
-  renderDrawing();
-}
-
-function containsPoint(feature: MapFeature, point: L.LatLng): boolean {
-  const ring = feature.geometry.coordinates[0];
-  let inside = false;
-  const pixelPoint = map?.latLngToLayerPoint(point);
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-    if (pixelPoint && map) {
-      const first = map.latLngToLayerPoint([yi, xi]);
-      const second = map.latLngToLayerPoint([yj, xj]);
-      const dx = second.x - first.x;
-      const dy = second.y - first.y;
-      const lengthSquared = dx * dx + dy * dy;
-      const ratio = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1,
-        ((pixelPoint.x - first.x) * dx + (pixelPoint.y - first.y) * dy) / lengthSquared,
-      ));
-      if (pixelPoint.distanceTo(L.point(first.x + ratio * dx, first.y + ratio * dy)) <= 8)
-        return true;
-    }
-    if (((yi > point.lat) !== (yj > point.lat))
-      && point.lng < ((xj - xi) * (point.lat - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-interface RingBounds {
-  minLongitude: number;
-  minLatitude: number;
-  maxLongitude: number;
-  maxLatitude: number;
-}
-
-function openRing(ring: PolygonPosition[]): PolygonPosition[] {
-  const first = ring[0];
-  const last = ring.at(-1);
-  if (first && last && first[0] === last[0] && first[1] === last[1])
-    return ring.slice(0, -1);
-  return ring;
-}
-
-function pointInRing(
-  longitude: number,
-  latitude: number,
-  ring: PolygonPosition[],
-): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-    const [xi, yi] = ring[i];
-    const [xj, yj] = ring[j];
-    if (((yi > latitude) !== (yj > latitude))
-      && longitude < ((xj - xi) * (latitude - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
-
-function segmentsCross(
-  a: PolygonPosition,
-  b: PolygonPosition,
-  c: PolygonPosition,
-  d: PolygonPosition,
-): boolean {
-  const direction = (p: PolygonPosition, q: PolygonPosition, r: PolygonPosition) =>
-    (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
-  const abC = direction(a, b, c);
-  const abD = direction(a, b, d);
-  const cdA = direction(c, d, a);
-  const cdB = direction(c, d, b);
-  return ((abC > 0 && abD < 0) || (abC < 0 && abD > 0))
-    && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0));
-}
-
-function ringsCross(first: PolygonPosition[], second: PolygonPosition[]): boolean {
-  for (let i = 0; i < first.length; i++) {
-    const a = first[i];
-    const b = first[(i + 1) % first.length];
-    for (let j = 0; j < second.length; j++) {
-      if (segmentsCross(a, b, second[j], second[(j + 1) % second.length]))
-        return true;
-    }
-  }
-  return false;
-}
-
-function ringBounds(ring: PolygonPosition[]): RingBounds {
-  const bounds: RingBounds = {
-    minLongitude: Infinity,
-    minLatitude: Infinity,
-    maxLongitude: -Infinity,
-    maxLatitude: -Infinity,
-  };
-  for (const [longitude, latitude] of ring) {
-    if (longitude < bounds.minLongitude) bounds.minLongitude = longitude;
-    if (longitude > bounds.maxLongitude) bounds.maxLongitude = longitude;
-    if (latitude < bounds.minLatitude) bounds.minLatitude = latitude;
-    if (latitude > bounds.maxLatitude) bounds.maxLatitude = latitude;
-  }
-  return bounds;
-}
-
-function boundsOverlap(first: RingBounds, second: RingBounds): boolean {
-  return !(first.maxLongitude < second.minLongitude
-    || second.maxLongitude < first.minLongitude
-    || first.maxLatitude < second.minLatitude
-    || second.maxLatitude < first.minLatitude);
-}
-
-function featureOverlapsRing(
-  feature: MapFeature,
-  positions: PolygonPosition[],
-  positionBounds: RingBounds,
-): boolean {
-  const ring = openRing(feature.geometry.coordinates[0]);
-  if (ring.length < 3) return false;
-  if (!boundsOverlap(ringBounds(ring), positionBounds)) return false;
-  if (ringsCross(ring, positions)) return true;
-  if (positions.some(([longitude, latitude]) => pointInRing(longitude, latitude, ring)))
-    return true;
-  return ring.some(([longitude, latitude]) => pointInRing(longitude, latitude, positions));
-}
-
-function featureContainsRing(
-  feature: MapFeature,
-  positions: PolygonPosition[],
-): boolean {
-  const ring = openRing(feature.geometry.coordinates[0]);
-  if (ring.length < 3) return false;
-  if (!positions.every(([longitude, latitude]) => pointInRing(longitude, latitude, ring)))
-    return false;
-  return !ringsCross(ring, positions);
-}
-
-function ringArea(ring: PolygonPosition[]): number {
-  let sum = 0;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++)
-    sum += ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
-  return Math.abs(sum) / 2;
-}
-
-function featureLabel(feature: MapFeature): string {
-  return feature.name || t(`map.featureTypes.${feature.type}`);
-}
-
-function detectParentFeature(
-  positions: PolygonPosition[],
-): { parent: MapFeature | null; conflict: MapFeature | null } {
-  const positionBounds = ringBounds(positions);
-  const overlapping = props.features.filter((feature) =>
-    featureOverlapsRing(feature, positions, positionBounds));
-  const containers = overlapping.filter((feature) =>
-    featureContainsRing(feature, positions));
-  if (containers.length) {
-    const parent = containers.reduce((best, candidate) => {
-      const depthDelta = featureDepth(candidate) - featureDepth(best);
-      if (depthDelta > 0) return candidate;
-      if (depthDelta === 0
-        && ringArea(openRing(candidate.geometry.coordinates[0]))
-          < ringArea(openRing(best.geometry.coordinates[0]))) return candidate;
-      return best;
-    });
-    return { parent, conflict: null };
-  }
-  return { parent: null, conflict: overlapping[0] ?? null };
-}
-
-function updateDrawingHints() {
-  if (parentFeature.value || vertices.value.length < 3) {
-    prospectiveParent.value = null;
-    return;
-  }
-  const positions = vertices.value.map(
-    (point): PolygonPosition => [point.lng, point.lat],
-  );
-  const { parent, conflict } = detectParentFeature(positions);
-  prospectiveParent.value = parent;
-  if (!parent && conflict)
-    drawingError.value = t("map.overlapsExistingFeature", { name: featureLabel(conflict) });
-}
-
-function chooseParent(feature: MapFeature, event: L.LeafletMouseEvent) {
-  if (!choosingParent.value) {
-    return;
-  }
-  L.DomEvent.stopPropagation(event.originalEvent);
-  parentFeature.value = feature;
-  choosingParent.value = false;
-  drawing.value = true;
-  drawingError.value = "";
-}
-
 function selectFeatureAtPoint(point: L.LatLng) {
   const candidates = props.features
-    .filter((feature) => containsPoint(feature, point))
-    .sort((first, second) => featureDepth(second) - featureDepth(first));
+    .filter((feature) => containsPoint(feature, point, map))
+    .sort((first, second) =>
+      featureDepth(second, props.features) - featureDepth(first, props.features));
   if (!candidates.length) {
     lastFeatureClickPoint = undefined;
     lastFeatureClickIds = [];
@@ -342,87 +118,6 @@ function selectFeatureAtPoint(point: L.LatLng) {
 function selectFeatureOnMapClick(event: L.LeafletEvent) {
   if (drawing.value || choosingParent.value || !hasMapPoint(event)) return;
   selectFeatureAtPoint(event.latlng);
-}
-
-function featureDepth(feature: MapFeature): number {
-  let depth = 0;
-  let parentId = feature.parentFeatureId;
-  const visited = new Set([feature.id]);
-  while (parentId) {
-    if (visited.has(parentId)) break;
-    visited.add(parentId);
-    const parent = props.features.find(({ id }) => id === parentId);
-    if (!parent) break;
-    depth++;
-    parentId = parent.parentFeatureId;
-  }
-  return depth;
-}
-
-function undoVertex() {
-  vertices.value = vertices.value.slice(0, -1);
-  drawingError.value = "";
-  renderDrawing();
-  updateDrawingHints();
-}
-
-function cancelDrawing() {
-  drawing.value = false;
-  choosingParent.value = false;
-  parentFeature.value = null;
-  prospectiveParent.value = null;
-  vertices.value = [];
-  drawingError.value = "";
-  drawingLayer.clearLayers();
-}
-
-function finishDrawing() {
-  if (vertices.value.length < 3) return;
-  const ring = vertices.value.map(
-    (point) => [point.lng, point.lat] as [number, number],
-  );
-  ring.push([...ring[0]]);
-  if (new Set(ring.slice(0, -1).map(([x, y]) => `${x},${y}`)).size < 3 || polygonIntersectsItself(ring)) {
-    drawingError.value = t("map.invalidPolygon");
-    return;
-  }
-  if (parentFeature.value && ring.slice(0, -1).some(([longitude, latitude]) =>
-    !containsPoint(parentFeature.value!, L.latLng(latitude, longitude)))) {
-    drawingError.value = t("map.pointOutsideParent");
-    return;
-  }
-  let parentFeatureId = parentFeature.value?.id ?? null;
-  if (!parentFeature.value) {
-    // A drawing that overlaps an existing feature becomes its subobject.
-    const { parent, conflict } = detectParentFeature(ring.slice(0, -1));
-    if (conflict) {
-      drawingError.value = t("map.overlapsExistingFeature", {
-        name: featureLabel(conflict),
-      });
-      return;
-    }
-    parentFeatureId = parent?.id ?? null;
-  }
-  emit("createFeature", {
-    geometry: { type: "Polygon", coordinates: [ring] },
-    name: featureName.value.trim(),
-    type: featureType.value,
-    parentFeatureId,
-  });
-  cancelDrawing();
-}
-
-function polygonIntersectsItself(ring: [number, number][]): boolean {
-  const edgeCount = ring.length - 1;
-  for (let first = 0; first < edgeCount; first++) {
-    for (let second = first + 1; second < edgeCount; second++) {
-      if (second === first + 1 || (first === 0 && second === edgeCount - 1))
-        continue;
-      if (segmentsCross(ring[first], ring[first + 1], ring[second], ring[second + 1]))
-        return true;
-    }
-  }
-  return false;
 }
 
 function drawLocation() {
@@ -574,7 +269,10 @@ onMounted(() => {
 watch(() => props.location, drawLocation);
 watch(() => props.observations, drawObservations, { deep: true });
 watch(() => props.features, drawFeatures, { deep: true });
-watch(() => mapStore.drawRequest, () => startDrawing(mapStore.drawMode));
+watch(() => mapStore.drawRequest, () => {
+  cancelLongPress();
+  startDrawing(mapStore.drawMode);
+});
 onBeforeUnmount(() => {
   cancelLongPress();
   resizeObserver?.disconnect();
