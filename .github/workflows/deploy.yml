@@ -61,6 +61,7 @@ jobs:
             --exclude='.env.*.local' \
             --exclude='var/' \
             --exclude='vendor/' \
+            --exclude='routing/data/' \
             -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             backend/ "$DEPLOY_USER@$DEPLOY_HOST:$BACKEND_DEPLOY_PATH/"
           printf '%s\n' "$BACKEND_ENV" | \
@@ -75,6 +76,10 @@ jobs:
             -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             "$DEPLOY_USER@$DEPLOY_HOST" \
             "cd '$BACKEND_DEPLOY_PATH' && \
+             if [ ! -s routing/data/schleswig-holstein.osm.pbf ]; then \
+               docker compose --env-file .env.local \
+                 -f compose.yaml -f compose.prod.yaml run --rm routing-data; \
+             fi && \
              docker compose --env-file .env.local \
                -f compose.yaml -f compose.prod.yaml \
                up --build --detach --remove-orphans --wait"

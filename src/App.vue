@@ -34,6 +34,14 @@ async function startObservationCreation() {
   map.requestObservationPoint();
   menuOpen.value = false;
 }
+async function startRouting() {
+  if (route.name !== "map") {
+    await router.push({ name: "map" });
+    await nextTick();
+  }
+  map.requestRouting();
+  menuOpen.value = false;
+}
 let stop: (() => void) | undefined;
 onMounted(() => {
   stop = sync.start();
@@ -74,6 +82,9 @@ onBeforeUnmount(() => stop?.());
         </RouterLink>
       </section>
       <SyncPanel class="menu-sync" />
+      <button type="button" class="menu-action" @click="startRouting">
+        <i class="pi pi-directions" aria-hidden="true" /> {{ t("routing.title") }}
+      </button>
     </nav>
     <button
       v-if="mapVisible"

@@ -2,6 +2,31 @@ import { createI18n } from "vue-i18n";
 
 export const messages = {
   de: {
+    routing: {
+      title: "Route planen",
+      close: "Routenplanung schließen",
+      pickStart: "Wählen Sie den Startpunkt auf der Karte.",
+      pickEnd: "Wählen Sie das Ziel auf der Karte.",
+      loading: "Fußweg wird berechnet…",
+      distance: "Kürzester Fußweg: {distance}",
+      changeStart: "Start ändern",
+      changeEnd: "Ziel ändern",
+      retry: "Erneut versuchen",
+      clear: "Route zurücksetzen",
+      start: "A: Start",
+      end: "B: Ziel",
+      useCenter: "Kartenmitte wählen",
+      snapHint: "Gepunktete Linien verbinden Ihre Punkte mit dem Wegenetz und zählen nicht zur Streckenlänge.",
+      errors: {
+        identical_points: "Start und Ziel müssen verschieden sein.",
+        invalid_input: "Bitte wählen Sie gültige Start- und Zielpunkte.",
+        no_route: "Kein Fußweg gefunden. Wählen Sie Punkte näher am Wegenetz im Raum Flensburg.",
+        unavailable: "Routenberechnung ist vorübergehend nicht verfügbar. Bitte erneut versuchen.",
+        invalid_response: "Der Routendienst hat eine ungültige Antwort geliefert. Bitte erneut versuchen.",
+        offline: "Offline. Für eine neue Route ist eine Verbindung zum Server erforderlich.",
+        failed: "Die Route konnte nicht berechnet werden. Bitte erneut versuchen.",
+      },
+    },
     app: {
       skip: "Zum Inhalt",
       footer: "Lokal gespeichert",
@@ -37,7 +62,7 @@ export const messages = {
       retry: "Erneut laden",
       yourLocation: "Ihr Standort",
       mapLabel: "Barrierefreiheitskarte",
-      mapHelp: "Karte. Mit Pfeiltasten verschieben, mit Plus und Minus zoomen. Einen neuen Eintrag legen Sie über „Beobachtung anlegen“ an, indem Sie danach einen Punkt auf der Karte wählen.",
+      mapHelp: "Karte. Mit Pfeiltasten verschieben, mit Plus und Minus zoomen. Über „Route planen“ wählen Sie Start und Ziel per Klick oder mit „Kartenmitte wählen“. Einen neuen Eintrag legen Sie über „Beobachtung anlegen“ an, indem Sie danach einen Punkt auf der Karte wählen.",
       mapError: "Kartendaten konnten teilweise nicht geladen werden.",
       accessible: "Rollstuhlgerecht",
       notAccessible: "Nicht rollstuhlgerecht",

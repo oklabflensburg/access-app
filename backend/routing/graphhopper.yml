@@ -1,0 +1,40 @@
+graphhopper:
+  datareader.file: /data/osm/schleswig-holstein.osm.pbf
+  graph.location: /data/graph-cache
+  graph.encoded_values: foot_access,foot_road_access,hike_rating,country,road_class
+  graph.elevation.provider: noop
+  # Never inherit the car example's exclusion of footways, paths or steps.
+  import.osm.ignored_highways: construction
+  profiles:
+    - name: foot_shortest
+      custom_model:
+        distance_influence: 0
+        # Constant speed and priority 1 make weight proportional to distance.
+        # This is not an ETA profile; travel time is deliberately not exposed.
+        speed:
+          - if: "true"
+            limit_to: "5"
+        priority:
+          - if: "!foot_access || hike_rating >= 2"
+            multiply_by: "0"
+          - if: "country == DEU && road_class == BRIDLEWAY && foot_road_access != YES"
+            multiply_by: "0"
+  profiles_ch:
+    - profile: foot_shortest
+  profiles_lm: []
+  routing.timeout_ms: 15000
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      bind_host: 0.0.0.0
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: 127.0.0.1
+  request_log:
+    appenders: []
+logging:
+  appenders:
+    - type: console

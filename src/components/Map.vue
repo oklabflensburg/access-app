@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import L from "leaflet";
 import type { LocationData } from "../types/location";
 import type { Observation } from "../types/observation";
+import type { RoutePoint, WalkingRoute } from "../types/routing";
 import type {
   MapFeature,
   MapFeatureType,
@@ -19,12 +20,19 @@ const props = defineProps<{
   observations: Observation[];
   ownedObservationIds: ReadonlySet<string>;
   features: MapFeature[];
+  routingActive?: boolean;
+  routePicking?: "start" | "end" | null;
+  routeStart?: RoutePoint | null;
+  routeEnd?: RoutePoint | null;
+  walkingRoute?: WalkingRoute | null;
 }>();
 const emit = defineEmits<{
   selectObservation: [id: string];
   selectLocation: [location: LocationData];
   selectFeature: [id: string];
   createFeature: [feature: { geometry: PolygonGeometry; name: string; type: MapFeatureType; parentFeatureId: string | null }];
+  routePoint: [point: RoutePoint];
+  cancelRoute: [];
 }>();
 const { t } = useI18n();
 const mapStore = useMapStore();
@@ -39,6 +47,7 @@ let observationLayer: L.LayerGroup;
 let locationLayer: L.LayerGroup;
 let featureLayer: L.LayerGroup;
 let drawingLayer: L.LayerGroup;
+let routingLayer: L.LayerGroup;
 let resizeObserver: ResizeObserver | undefined;
 const pickingPoint = ref(false);
 
@@ -63,12 +72,9 @@ const {
   createFeature: (feature) => emit("createFeature", feature),
 });
 
-let pointPickedThisClick = false;
-
 function pickObservationPoint(event: L.LeafletEvent) {
   if (!pickingPoint.value || !hasMapPoint(event)) return;
   pickingPoint.value = false;
-  pointPickedThisClick = true;
   emit("selectLocation", {
     latitude: event.latlng.lat,
     longitude: event.latlng.lng,
@@ -105,13 +111,82 @@ function selectFeatureAtPoint(point: L.LatLng) {
 }
 
 function selectFeatureOnMapClick(event: L.LeafletEvent) {
-  if (pointPickedThisClick) {
-    pointPickedThisClick = false;
-    return;
-  }
   if (drawing.value || choosingParent.value || pickingPoint.value || !hasMapPoint(event))
     return;
   selectFeatureAtPoint(event.latlng);
+}
+
+function pickRoutePoint(point: L.LatLng) {
+  emit("routePoint", { latitude: point.lat, longitude: point.lng });
+}
+
+function onMapClick(event: L.LeafletEvent) {
+  if (!hasMapPoint(event)) return;
+  if (props.routePicking) pickRoutePoint(event.latlng);
+  else if (pickingPoint.value) pickObservationPoint(event);
+  else if (drawing.value) addVertex(event);
+  else selectFeatureOnMapClick(event);
+}
+
+function pickMapCenter() {
+  if (map && props.routePicking) pickRoutePoint(map.getCenter());
+}
+
+function fitRoute(panelHeight: number) {
+  const route = props.walkingRoute;
+  if (!route || !map) return;
+  const bounds = L.latLngBounds(route.geometry.coordinates.map(([lng, lat]) => [lat, lng] as L.LatLngTuple));
+  if (props.routeStart) bounds.extend([props.routeStart.latitude, props.routeStart.longitude]);
+  if (props.routeEnd) bounds.extend([props.routeEnd.latitude, props.routeEnd.longitude]);
+  const width = container.value?.clientWidth ?? 800;
+  const height = container.value?.clientHeight ?? 720;
+  map.fitBounds(bounds, {
+    maxZoom: 18,
+    paddingTopLeft: [35, width < 800 ? Math.min(panelHeight + 96, height - 140) : 90],
+    paddingBottomRight: [width < 800 ? 35 : 440, 55],
+  });
+}
+
+defineExpose({ pickMapCenter, fitRoute });
+
+function onMarkerActivation(marker: L.Marker, activate: () => void) {
+  marker.on("click", activate);
+  marker.on("keydown", (event) => {
+    const keyboardEvent = (event as L.LeafletKeyboardEvent).originalEvent;
+    if (keyboardEvent.key === "Enter" || keyboardEvent.key === " ") {
+      L.DomEvent.preventDefault(keyboardEvent);
+      activate();
+    }
+  });
+}
+
+function drawRoute() {
+  if (!map) return;
+  routingLayer.clearLayers();
+  const latLng = (point: RoutePoint): L.LatLngTuple => [point.latitude, point.longitude];
+  const route = props.walkingRoute;
+  if (route) {
+    L.geoJSON(route.geometry, {
+      style: { color: "#5145cd", weight: 6, opacity: 0.9, className: "walking-route" },
+      interactive: false,
+    }).addTo(routingLayer);
+    for (const [picked, snapped] of [[props.routeStart, route.snappedStart], [props.routeEnd, route.snappedEnd]] as const) {
+      if (picked && L.latLng(latLng(picked)).distanceTo(latLng(snapped)) > 1) {
+        L.polyline([latLng(picked), latLng(snapped)], {
+          color: "#5145cd", weight: 3, dashArray: "3 6", interactive: false,
+          className: "route-connector",
+        }).addTo(routingLayer);
+      }
+    }
+  }
+  for (const [point, label, name] of [[props.routeStart, "A", "start"], [props.routeEnd, "B", "end"]] as const) {
+    if (!point) continue;
+    L.marker(latLng(point), {
+      icon: L.divIcon({ className: "route-marker", html: `<span>${label}</span>`, iconSize: [34, 34], iconAnchor: [17, 34] }),
+      title: t(`routing.${name}`), alt: t(`routing.${name}`),
+      interactive: false, keyboard: false, zIndexOffset: 1000,
+    }).addTo(routingLayer);
+  }
 }
 
 function drawLocation() {
@@ -137,14 +212,17 @@ function drawLocation() {
     title: t("map.yourLocation"),
     alt: t("map.yourLocation"),
   })
-    .bindPopup(t("map.yourLocation"))
     .addTo(locationLayer);
+  onMarkerActivation(marker, () => {
+    if (props.routePicking) pickRoutePoint(marker.getLatLng());
+    else L.popup().setLatLng(point).setContent(t("map.yourLocation")).openOn(map!);
+  });
   marker.getElement()?.setAttribute("aria-label", t("map.yourLocation"));
-  map.setView(point, 17);
+  if (!props.routingActive) map.setView(point, 17);
 }
 
 function fitInitialBounds() {
-  if (initialBoundsFitted || !map || props.location) return;
+  if (initialBoundsFitted || !map || props.location || props.routingActive) return;
   const observationPoints = props.observations.map(
     (observation): L.LatLngTuple => [
       observation.location.latitude,
@@ -160,7 +238,9 @@ function fitInitialBounds() {
       );
   if (!points.length) return;
   initialBoundsFitted = true;
-  map.fitBounds(L.latLngBounds(points), { maxZoom: 17, padding: [35, 35] });
+  map.fitBounds(L.latLngBounds(points), {
+    maxZoom: 17, paddingTopLeft: [35, 90], paddingBottomRight: [35, 90],
+  });
 }
 
 function drawObservations() {
@@ -195,8 +275,11 @@ function drawObservations() {
         alt: t("map.entry", { number: index + 1, label }),
       },
     ).addTo(observationLayer);
-    if (isOwned) marker.on("click", () => emit("selectObservation", observation.id));
-    else marker.bindPopup(popup);
+    onMarkerActivation(marker, () => {
+      if (props.routePicking) pickRoutePoint(marker.getLatLng());
+      else if (isOwned) emit("selectObservation", observation.id);
+      else L.popup().setLatLng(marker.getLatLng()).setContent(popup).openOn(map!);
+    });
     marker
       .getElement()
       ?.setAttribute("aria-label", t("map.entry", { number: index + 1, label }));
@@ -235,7 +318,8 @@ onMounted(() => {
     scrollWheelZoom: true,
     touchZoom: true,
     doubleClickZoom: true,
-  }).setView([20, 0], 2);
+  }).setView([54.7833, 9.4333], 14);
+  map.attributionControl.addAttribution('Routing: <a href="https://www.graphhopper.com">GraphHopper</a>');
   L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
     attribution:
@@ -249,12 +333,12 @@ onMounted(() => {
   featureLayer = L.layerGroup().addTo(map);
   observationLayer = L.layerGroup().addTo(map);
   drawingLayer = L.layerGroup().addTo(map);
-  map.on("click", pickObservationPoint);
-  map.on("click", addVertex);
-  map.on("click", selectFeatureOnMapClick);
+  routingLayer = L.layerGroup().addTo(map);
+  map.on("click", onMapClick);
   drawLocation();
   drawObservations();
   drawFeatures();
+  drawRoute();
   resizeObserver = new ResizeObserver(() => map?.invalidateSize());
   resizeObserver.observe(container.value!);
 });
@@ -262,13 +346,26 @@ watch(() => props.location, drawLocation);
 watch(() => props.observations, drawObservations, { deep: true });
 watch(() => props.features, drawFeatures, { deep: true });
 watch(() => mapStore.drawRequest, () => {
+  emit("cancelRoute");
   pickingPoint.value = false;
   startDrawing(mapStore.drawMode);
 });
 watch(() => mapStore.pickPointRequest, () => {
+  emit("cancelRoute");
   cancelDrawing();
   pickingPoint.value = true;
 });
+watch(() => props.routingActive, (active) => {
+  if (active) {
+    cancelDrawing();
+    pickingPoint.value = false;
+    map?.closePopup();
+  }
+});
+watch(() => props.routePicking, (picking) => {
+  if (picking) map?.closePopup();
+});
+watch(() => [props.routeStart, props.routeEnd, props.walkingRoute], drawRoute, { deep: true });
 onBeforeUnmount(() => {
   resizeObserver?.disconnect();
   map?.remove();
@@ -280,7 +377,7 @@ onBeforeUnmount(() => {
     <div
       ref="container"
       class="map"
-      :class="{ 'map--picking': pickingPoint }"
+      :class="{ 'map--picking': pickingPoint || routePicking }"
       :aria-label="t('map.mapHelp')"
     />
     <div v-if="pickingPoint" class="drawing-controls" role="group" :aria-label="t('map.pickPointControls')">

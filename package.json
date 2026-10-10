@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "playwright test",
     "test:api": "playwright test -c playwright.api.config.ts",
+    "test:routing-profile": "node scripts/test-routing-profile.mjs",
     "test:pwa": "npm run build && playwright test -c playwright.pwa.config.ts"
   },
   "dependencies": {

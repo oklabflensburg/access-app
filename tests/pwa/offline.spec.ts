@@ -48,21 +48,24 @@ test("installed app shell opens and restores observations after an offline reloa
     await navigator.serviceWorker.ready;
   });
   await page.reload();
+  await page.getByRole("button", { name: "Menü", exact: true }).click();
+  await page.getByRole("button", { name: "Beobachtung anlegen", exact: true }).click();
+  const bounds = await page.locator(".map").boundingBox();
+  if (!bounds) throw new Error("Map missing");
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.getByLabel("Kommentar", { exact: false }).fill("Available offline");
   await page
-    .getByRole("link", { name: "+ Add accessibility information" })
-    .click();
-  await page.getByLabel("Comment").fill("Available offline");
-  await page
-    .getByRole("button", { name: "Save observation on this device" })
+    .getByRole("button", { name: "Speichern", exact: true })
     .click();
   await expect(page).toHaveURL(/\/$/);
+  await page.getByRole("button", { name: "Menü", exact: true }).click();
   await page
-    .getByRole("link", { name: "My observations", exact: true })
+    .getByRole("link", { name: "Meine Beobachtungen", exact: true })
     .click();
   await context.setOffline(true);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "My observations", exact: true }),
+    page.getByRole("heading", { name: "Meine Beobachtungen", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByText("Available offline", { exact: true }),

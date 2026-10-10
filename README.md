@@ -9,7 +9,7 @@ Use Node.js 22.12+ or Node.js 24+, plus Docker Compose for the backend. The repo
 ```sh
 nvm use
 npm ci
-(cd backend && docker compose up -d --build --wait)
+(cd backend && docker compose run --rm routing-data && docker compose up -d --build --wait)
 npm run dev
 ```
 
@@ -68,7 +68,7 @@ HTTPS_PORT=8443
 HTTP3_PORT=8443
 ```
 
-The backend's database, Caddy state, and uploaded photos remain in named Docker volumes across deployments. The frontend synchronizer explicitly preserves the `backend/` directory, while the backend synchronizer preserves runtime data. The environment file is updated exclusively from the protected GitHub secret.
+The backend's database, Caddy state, uploaded photos, and routing graphs remain in named Docker volumes across deployments. The frontend synchronizer explicitly preserves the `backend/` directory, while the backend synchronizer preserves runtime data, including `routing/data/`. The first deployment downloads the Schleswig-Holstein OSM extract if it is missing; later deployments reuse it. Data updates and graph rebuilds are explicit operations documented in [backend/README.md](backend/README.md). Allow at least 4 GB of RAM for the stack and several minutes for the first graph build. The environment file is updated exclusively from the protected GitHub secret.
 
 Service-worker updates prompt for a reload so an update does not silently discard an open form. The development server intentionally does not register a service worker.
 
@@ -166,7 +166,23 @@ Manual checks by milestone:
 - Production deployment, HTTPS, production database credentials, backups, rate limiting/moderation for anonymous submissions, monitoring, and real-device QA are operational follow-ups. The supplied Compose stack is a local development setup, not a production deployment.
 - Serve `dist/` with navigation fallback to `index.html`, route `/api` to the Symfony/FrankenPHP service, keep photo storage outside the public root, and avoid permanently caching `sw.js` or HTML.
 
-Calibrated noise, automatic accessibility classification, native sensor adapters, accounts, routing, and background sync after closing the app are outside this collection MVP.
+## Walking routes
+
+Choose **Route planen** in the menu, then click a start point and destination.
+The map displays the shortest walking route and total distance. Use **Start ändern**
+or **Ziel ändern** to replace a point, **Route zurücksetzen** to start again, or
+close the panel to leave routing. Keyboard users can pan the map with arrow keys
+and choose **Kartenmitte wählen** for either endpoint.
+
+Routes use a self-hosted GraphHopper walking graph built from Schleswig-Holstein
+OSM data, including Flensburg. An empty map starts in Flensburg. New calculations
+need backend connectivity; routes are temporary and are not saved or synced.
+Dotted connections show gaps between selected points and the walking network,
+and are excluded from the route distance. Version one does not apply collected
+accessibility observations or map-feature rules. Engine setup and data refresh
+commands are documented in [backend/README.md](backend/README.md).
+
+Calibrated noise, automatic accessibility classification, native sensor adapters, accounts, and background sync after closing the app are outside this collection MVP.
 
 ## References
 
