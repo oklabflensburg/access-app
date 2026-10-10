@@ -1,5 +1,19 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const featureTypes = ["area", "building", "entrance", "staircase", "ramp", "toilet", "elevator", "path"] as const;
+
+function preference(priorities: Record<string, string>, revision: number) {
+  return {
+    id: "routing",
+    featurePriorities: {
+      ...Object.fromEntries(featureTypes.map((type) => [type, "neutral"])),
+      ...priorities,
+    },
+    revision,
+    updatedAt: "2026-10-10T10:00:00.000Z",
+  };
+}
+
 test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
   await page.route("**/api/observations?*", route => route.fulfill({ json: { observations: [], nextCursor: null } }));
@@ -12,15 +26,6 @@ test.beforeEach(async ({ page }) => {
   }] } }));
 });
 
-function preference(wheelchairAccessible: boolean, revision: number) {
-  return {
-    id: "routing",
-    wheelchairAccessible,
-    revision,
-    updatedAt: "2026-10-10T10:00:00.000Z",
-  };
-}
-
 async function openMenu(page: Page) {
   await page.getByRole("button", { name: "Menü", exact: true }).click();
 }
@@ -29,7 +34,14 @@ async function openPreferences(page: Page) {
   await page.goto("/");
   await openMenu(page);
   await page.getByRole("link", { name: "Routeneinstellungen" }).click();
-  return page.getByRole("switch", { name: "Rollstuhlgerechte Wege bevorzugen" });
+}
+
+async function setPriority(page: Page, typeLabel: string, priorityLabel: string) {
+  const field = page.locator(".preference-field", { hasText: typeLabel });
+  await field.getByRole("combobox").click();
+  await page.getByRole("option", { name: priorityLabel, exact: true }).click();
+  await page.locator(".p-select-overlay").waitFor({ state: "detached" });
+  await expect(field).toContainText(priorityLabel);
 }
 
 async function clickPoint(page: Page, x: number, y: number) {
@@ -38,18 +50,18 @@ async function clickPoint(page: Page, x: number, y: number) {
   await page.mouse.click(bounds.x + bounds.width * x, bounds.y + bounds.height * y);
 }
 
-test("the wheelchair preference is saved locally, synced, and sent with route requests", async ({ page }) => {
-  let remote = preference(false, 0);
+test("feature type priorities are saved locally, synced, and sent with route requests", async ({ page }) => {
+  let remote = preference({}, 0);
   let uploads = 0;
   await page.route("**/api/preferences/routing", async route => {
     if (route.request().method() === "GET") return route.fulfill({ json: remote });
     const body = route.request().postDataJSON();
     expect(body.revision).toBeGreaterThan(remote.revision);
-    remote = preference(body.wheelchairAccessible, body.revision);
+    remote = preference(body.featurePriorities, body.revision);
     uploads++;
     return route.fulfill({ json: remote });
   });
-  let routeBody: { wheelchairAccessible?: boolean; staircaseAreas?: unknown[] } | undefined;
+  let routeBody: { featurePriorities?: Record<string, string>; priorityAreas?: { priority: string; geometry: unknown }[] } | undefined;
   await page.route("**/api/routes", async route => {
     routeBody = route.request().postDataJSON();
     const { start, end } = routeBody;
@@ -66,13 +78,13 @@ test("the wheelchair preference is saved locally, synced, and sent with route re
     });
   });
 
-  const toggle = await openPreferences(page);
-  await expect(toggle).toHaveAttribute("aria-checked", "false");
-  await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-checked", "true");
+  await openPreferences(page);
+  await setPriority(page, "Treppe", "Vermeiden");
   expect(uploads).toBe(0);
 
-  await page.keyboard.press("Escape");
+  // Escape is swallowed by the focused Select (PrimeVue stops propagation),
+  // so close the dialog the way a user would: by clicking the mask.
+  await page.locator(".p-dialog-mask").click({ position: { x: 8, y: 8 } });
   await openMenu(page);
   await page.getByRole("button", { name: /Synchronisieren/ }).click();
   await expect.poll(() => uploads).toBe(1);
@@ -81,13 +93,16 @@ test("the wheelchair preference is saved locally, synced, and sent with route re
   await clickPoint(page, 0.2, 0.55);
   await clickPoint(page, 0.5, 0.75);
   await expect(page.getByText("Kürzester Fußweg: 1,23 km")).toBeVisible();
-  expect(routeBody?.wheelchairAccessible).toBe(true);
-  expect(routeBody?.staircaseAreas).toEqual([{
-    type: "Polygon",
-    coordinates: [[[9.43, 54.78], [9.44, 54.78], [9.44, 54.79], [9.43, 54.78]]],
+  expect(routeBody?.featurePriorities?.staircase).toBe("avoid");
+  expect(routeBody?.priorityAreas).toEqual([{
+    priority: "avoid",
+    geometry: {
+      type: "Polygon",
+      coordinates: [[[9.43, 54.78], [9.44, 54.78], [9.44, 54.79], [9.43, 54.78]]],
+    },
   }]);
 
   await page.reload();
-  const reloaded = await openPreferences(page);
-  await expect(reloaded).toHaveAttribute("aria-checked", "true");
+  await openPreferences(page);
+  await expect(page.locator(".preference-field", { hasText: "Treppe" })).toContainText("Vermeiden");
 });

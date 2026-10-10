@@ -1,6 +1,7 @@
 .PHONY: start stop logs migrate
 
-COMPOSE := docker compose --project-directory backend
+COMPOSE_ENV_FILE := $(wildcard backend/.env.local)
+COMPOSE := docker compose --project-directory backend $(if $(COMPOSE_ENV_FILE),--env-file $(COMPOSE_ENV_FILE))
 
 start:
 	$(COMPOSE) up --detach --build --wait

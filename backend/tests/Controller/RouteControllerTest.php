@@ -52,7 +52,7 @@ final class RouteControllerTest extends WebTestCase
         self::assertSame(['latitude' => 54.7901, 'longitude' => 9.4401], $data['snappedEnd']);
     }
 
-    public function testWheelchairPreferenceUsesTheWheelchairProfile(): void
+    public function testAvoidingStaircasesUsesTheWheelchairProfile(): void
     {
         $client = static::createClient();
         static::getContainer()->set('http_client', new MockHttpClient(function ($method, $url, $options) {
@@ -60,11 +60,13 @@ final class RouteControllerTest extends WebTestCase
             return self::routeResponse();
         }));
 
-        $client->jsonRequest('POST', '/api/routes', self::INPUT + ['wheelchairAccessible' => true]);
+        $client->jsonRequest('POST', '/api/routes', self::INPUT + [
+            'featurePriorities' => ['staircase' => 'avoid'],
+        ]);
         self::assertResponseIsSuccessful();
     }
 
-    public function testWheelchairRouteBlocksProvidedStaircaseAreas(): void
+    public function testPriorityAreasShapeTheCustomModel(): void
     {
         $area = ['type' => 'Polygon', 'coordinates' => [[[9.43, 54.78], [9.44, 54.78], [9.44, 54.79], [9.43, 54.78]]]];
         $client = static::createClient();
@@ -72,35 +74,65 @@ final class RouteControllerTest extends WebTestCase
             $body = json_decode($options['body'], true);
             self::assertSame('foot_wheelchair', $body['profile']);
             self::assertTrue($body['ch.disable']);
-            self::assertSame([[
-                'type' => 'Feature',
-                'id' => 'staircase_0',
-                'properties' => [],
-                'geometry' => $area,
-            ]], $body['custom_model']['areas']['features']);
-            self::assertSame([['if' => 'in_staircase_0', 'multiply_by' => '0']], $body['custom_model']['priority']);
+            self::assertSame([
+                [
+                    'type' => 'Feature',
+                    'id' => 'area_0',
+                    'properties' => [],
+                    'geometry' => $area,
+                ],
+                [
+                    'type' => 'Feature',
+                    'id' => 'area_1',
+                    'properties' => [],
+                    'geometry' => $area,
+                ],
+            ], $body['custom_model']['areas']['features']);
+            self::assertSame([
+                ['if' => 'in_area_0', 'multiply_by' => '0'],
+                ['if' => 'in_area_1', 'multiply_by' => '2'],
+            ], $body['custom_model']['priority']);
 
             return self::routeResponse();
         }));
 
         $client->jsonRequest('POST', '/api/routes', self::INPUT + [
-            'wheelchairAccessible' => true,
-            'staircaseAreas' => [$area],
+            'featurePriorities' => ['staircase' => 'avoid'],
+            'priorityAreas' => [
+                ['priority' => 'avoid', 'geometry' => $area],
+                ['priority' => 'prefer', 'geometry' => $area],
+            ],
         ]);
         self::assertResponseIsSuccessful();
     }
 
-    public function testInvalidStaircaseAreaIsRejected(): void
+    public function testReducedPriorityAreasLowerThePriorityFactor(): void
+    {
+        $area = ['type' => 'Polygon', 'coordinates' => [[[9.43, 54.78], [9.44, 54.78], [9.44, 54.79], [9.43, 54.78]]]];
+        $client = static::createClient();
+        static::getContainer()->set('http_client', new MockHttpClient(function ($method, $url, $options) {
+            $body = json_decode($options['body'], true);
+            self::assertSame([['if' => 'in_area_0', 'multiply_by' => '0.5']], $body['custom_model']['priority']);
+
+            return self::routeResponse();
+        }));
+
+        $client->jsonRequest('POST', '/api/routes', self::INPUT + [
+            'priorityAreas' => [['priority' => 'reduce', 'geometry' => $area]],
+        ]);
+        self::assertResponseIsSuccessful();
+    }
+
+    public function testInvalidPriorityAreaIsRejected(): void
     {
         $client = static::createClient();
         $client->disableReboot();
         static::getContainer()->set('http_client', new MockHttpClient(function () {
-            self::fail('Invalid staircase polygons must not reach GraphHopper.');
+            self::fail('Invalid priority areas must not reach GraphHopper.');
         }));
 
         $client->jsonRequest('POST', '/api/routes', self::INPUT + [
-            'wheelchairAccessible' => true,
-            'staircaseAreas' => [['type' => 'Polygon', 'coordinates' => [[[9, 54], [200, 54], [9, 55], [9, 54]]]]],
+            'priorityAreas' => [['priority' => 'avoid', 'geometry' => ['type' => 'Polygon', 'coordinates' => [[[9, 54], [200, 54], [9, 55], [9, 54]]]]]],
         ]);
 
         self::assertResponseStatusCodeSame(400);
@@ -120,6 +152,9 @@ final class RouteControllerTest extends WebTestCase
             ['start' => self::INPUT['start'], 'end' => ['latitude' => 54.79, 'longitude' => -181]],
             ['start' => ['latitude' => null, 'longitude' => 9.43], 'end' => self::INPUT['end']],
             ['start' => ['latitude' => 'invalid', 'longitude' => 9.43], 'end' => self::INPUT['end']],
+            self::INPUT + ['featurePriorities' => ['staircase' => 'maybe']],
+            self::INPUT + ['featurePriorities' => ['unknown' => 'avoid']],
+            self::INPUT + ['priorityAreas' => [['priority' => 'neutral', 'geometry' => ['type' => 'Polygon', 'coordinates' => [[[9, 54], [9, 55], [9.1, 55], [9, 54]]]]]]],
         ] as $input) {
             $client->jsonRequest('POST', '/api/routes', $input);
             self::assertResponseStatusCodeSame(400);

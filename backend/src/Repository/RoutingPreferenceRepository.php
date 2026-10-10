@@ -15,52 +15,54 @@ final class RoutingPreferenceRepository
     {
     }
 
-    /** @return array{id: string, wheelchair_accessible: bool, revision: int, updated_at: string}|null */
+    /** @return array{id: string, feature_priorities: mixed, revision: int, updated_at: string}|null */
     public function find(): ?array
     {
         $row = $this->connection->fetchAssociative(<<<'SQL'
-            SELECT id, wheelchair_accessible, revision, updated_at
+            SELECT id, feature_priorities, revision, updated_at
             FROM routing_preferences WHERE id = 'routing'
             SQL);
 
         return false === $row ? null : $row;
     }
 
-    /** @return array{id: string, wheelchair_accessible: bool, revision: int, updated_at: string}|null */
+    /** @return array{id: string, feature_priorities: mixed, revision: int, updated_at: string}|null */
     public function findForUpdate(): ?array
     {
         $row = $this->connection->fetchAssociative(<<<'SQL'
-            SELECT id, wheelchair_accessible, revision, updated_at
+            SELECT id, feature_priorities, revision, updated_at
             FROM routing_preferences WHERE id = 'routing' FOR UPDATE
             SQL);
 
         return false === $row ? null : $row;
     }
 
-    public function insert(bool $wheelchairAccessible): void
+    /** @param array<string, string> $featurePriorities */
+    public function insert(array $featurePriorities): void
     {
         $this->connection->executeStatement(<<<'SQL'
-            INSERT INTO routing_preferences (id, wheelchair_accessible, revision, updated_at)
-            VALUES (:id, :wheelchair_accessible, 1, NOW())
+            INSERT INTO routing_preferences (id, feature_priorities, revision, updated_at)
+            VALUES (:id, :feature_priorities, 1, NOW())
             SQL, [
             'id' => self::ID,
-            'wheelchair_accessible' => $wheelchairAccessible,
+            'feature_priorities' => $featurePriorities,
         ], [
             'id' => Types::TEXT,
-            'wheelchair_accessible' => Types::BOOLEAN,
+            'feature_priorities' => Types::JSON,
         ]);
     }
 
-    public function update(bool $wheelchairAccessible): void
+    /** @param array<string, string> $featurePriorities */
+    public function update(array $featurePriorities): void
     {
         $this->connection->executeStatement(<<<'SQL'
             UPDATE routing_preferences
-            SET wheelchair_accessible = :wheelchair_accessible, revision = revision + 1, updated_at = NOW()
+            SET feature_priorities = :feature_priorities, revision = revision + 1, updated_at = NOW()
             WHERE id = 'routing'
             SQL, [
-            'wheelchair_accessible' => $wheelchairAccessible,
+            'feature_priorities' => $featurePriorities,
         ], [
-            'wheelchair_accessible' => Types::BOOLEAN,
+            'feature_priorities' => Types::JSON,
         ]);
     }
 }

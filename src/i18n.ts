@@ -49,8 +49,13 @@ export const messages = {
     },
     preferences: {
       title: "Routeneinstellungen",
-      wheelchair: "Rollstuhlgerechte Wege bevorzugen",
-      wheelchairHint: "Routen vermeiden Treppen, wo eine Umgehung möglich ist.",
+      priorityHint: "Legen Sie je Objekttyp fest, wie gezeichnete Objekte dieser Art die Route beeinflussen.",
+      priorities: {
+        neutral: "Neutral",
+        avoid: "Vermeiden",
+        reduce: "Eher vermeiden",
+        prefer: "Bevorzugen",
+      },
       saveHint: "Wird lokal gespeichert und später synchronisiert. Die Einstellung gilt derzeit geräteübergreifend für alle Nutzer.",
     },
     map: {

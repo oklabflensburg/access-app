@@ -36,11 +36,7 @@ const {
   updateFeature,
 } = useMapFeatures(publicFeatures);
 
-const routing = useRouting(() =>
-  features.value
-    .filter((feature) => feature.type === "staircase")
-    .map((feature) => feature.geometry),
-);
+const routing = useRouting(() => features.value);
 
 watch(routing.result, async (result) => {
   if (!result) return;

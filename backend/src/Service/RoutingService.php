@@ -34,32 +34,33 @@ final class RoutingService
             throw new RoutingFailure('identical_points', 400);
         }
 
-        $staircaseAreas = $input->wheelchairAccessible
-            ? $this->staircaseAreas($input->staircaseAreas)
-            : [];
+        $priorities = $this->featurePriorities($input->featurePriorities);
+        $areas = $this->priorityAreas($input->priorityAreas);
 
         $request = [
             'points' => [
                 [$input->start->longitude, $input->start->latitude],
                 [$input->end->longitude, $input->end->latitude],
             ],
-            'profile' => $input->wheelchairAccessible ? 'foot_wheelchair' : 'foot_shortest',
+            'profile' => 'avoid' === ($priorities['staircase'] ?? 'neutral')
+                ? 'foot_wheelchair'
+                : 'foot_shortest',
             'points_encoded' => false,
             'instructions' => false,
             'elevation' => false,
         ];
-        if ($staircaseAreas !== []) {
+        if ($areas !== []) {
             $areaFeatures = [];
             $priority = [];
-            foreach ($staircaseAreas as $index => $area) {
-                $id = 'staircase_'.$index;
+            foreach ($areas as $index => $area) {
+                $id = 'area_'.$index;
                 $areaFeatures[] = [
                     'type' => 'Feature',
                     'id' => $id,
                     'properties' => new \stdClass(),
-                    'geometry' => $area,
+                    'geometry' => $area['geometry'],
                 ];
-                $priority[] = ['if' => 'in_'.$id, 'multiply_by' => '0'];
+                $priority[] = ['if' => 'in_'.$id, 'multiply_by' => FeaturePriorities::FACTORS[$area['priority']]];
             }
             $request['custom_model'] = [
                 'areas' => ['type' => 'FeatureCollection', 'features' => $areaFeatures],
@@ -128,37 +129,66 @@ final class RoutingService
         ];
     }
 
-    /** @param list<mixed> $areas @return list<array{type: 'Polygon', coordinates: array{list<array{int|float, int|float}>}}> */
-    private function staircaseAreas(array $areas): array
+    /** @param array<mixed> $settings @return array<string, string> */
+    private function featurePriorities(array $settings): array
+    {
+        $valid = [];
+        foreach ($settings as $type => $priority) {
+            if (!is_string($type) || !in_array($type, FeaturePriorities::TYPES, true)
+                || !is_string($priority) || !in_array($priority, FeaturePriorities::PRIORITIES, true)) {
+                throw new RoutingFailure('invalid_input', 400);
+            }
+            $valid[$type] = $priority;
+        }
+
+        return $valid;
+    }
+
+    /**
+     * @param list<mixed> $areas
+     * @return list<array{priority: string, geometry: array{type: 'Polygon', coordinates: array{list<array{int|float, int|float}>}}}>
+     */
+    private function priorityAreas(array $areas): array
     {
         if (count($areas) > 200) {
             throw new RoutingFailure('invalid_input', 400);
         }
         $valid = [];
         foreach ($areas as $area) {
-            if (!is_array($area) || 'Polygon' !== ($area['type'] ?? null)
-                || !is_array($area['coordinates'] ?? null) || !array_is_list($area['coordinates'])
-                || 1 !== count($area['coordinates'])) {
+            if (!is_array($area) || !is_string($area['priority'] ?? null)
+                || !array_key_exists($area['priority'], FeaturePriorities::FACTORS)) {
                 throw new RoutingFailure('invalid_input', 400);
             }
-            $ring = $area['coordinates'][0];
-            if (!is_array($ring) || !array_is_list($ring) || count($ring) < 4 || count($ring) > 501) {
-                throw new RoutingFailure('invalid_input', 400);
-            }
-            foreach ($ring as $point) {
-                if (!is_array($point) || !array_is_list($point) || 2 !== count($point)
-                    || !$this->validNumber($point[0]) || !$this->validNumber($point[1])
-                    || abs($point[0]) > 180 || abs($point[1]) > 90) {
-                    throw new RoutingFailure('invalid_input', 400);
-                }
-            }
-            if ($ring[0] !== $ring[array_key_last($ring)]) {
-                throw new RoutingFailure('invalid_input', 400);
-            }
-            $valid[] = ['type' => 'Polygon', 'coordinates' => [$ring]];
+            $valid[] = ['priority' => $area['priority'], 'geometry' => $this->polygon($area['geometry'] ?? null)];
         }
 
         return $valid;
+    }
+
+    /** @return array{type: 'Polygon', coordinates: array{list<array{int|float, int|float}>}} */
+    private function polygon(mixed $area): array
+    {
+        if (!is_array($area) || 'Polygon' !== ($area['type'] ?? null)
+            || !is_array($area['coordinates'] ?? null) || !array_is_list($area['coordinates'])
+            || 1 !== count($area['coordinates'])) {
+            throw new RoutingFailure('invalid_input', 400);
+        }
+        $ring = $area['coordinates'][0];
+        if (!is_array($ring) || !array_is_list($ring) || count($ring) < 4 || count($ring) > 501) {
+            throw new RoutingFailure('invalid_input', 400);
+        }
+        foreach ($ring as $point) {
+            if (!is_array($point) || !array_is_list($point) || 2 !== count($point)
+                || !$this->validNumber($point[0]) || !$this->validNumber($point[1])
+                || abs($point[0]) > 180 || abs($point[1]) > 90) {
+                throw new RoutingFailure('invalid_input', 400);
+            }
+        }
+        if ($ring[0] !== $ring[array_key_last($ring)]) {
+            throw new RoutingFailure('invalid_input', 400);
+        }
+
+        return ['type' => 'Polygon', 'coordinates' => [$ring]];
     }
 
     private function validLineString(mixed $geometry): bool

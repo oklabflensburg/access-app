@@ -6,29 +6,30 @@ import {
   saveRoutingPreferences,
 } from "../services/storage";
 import { fetchRoutingPreferences } from "../services/api";
+import { defaultFeaturePriorities, type FeaturePrioritySettings } from "../types/preferences";
 import { t } from "../i18n";
 
 export const usePreferencesStore = defineStore("preferences", () => {
-  const wheelchairAccessible = ref(false);
+  const featurePriorities = ref<FeaturePrioritySettings>(defaultFeaturePriorities());
   const saving = ref(false);
   const error = ref("");
 
   async function load() {
     error.value = "";
     try {
-      wheelchairAccessible.value = (await getRoutingPreferences()).wheelchairAccessible;
+      featurePriorities.value = (await getRoutingPreferences()).featurePriorities;
     } catch {
       error.value = t("errors.preferences");
     }
   }
 
-  async function save(value: boolean) {
+  async function save(settings: FeaturePrioritySettings) {
     if (saving.value) return;
     saving.value = true;
     error.value = "";
     try {
-      await saveRoutingPreferences(value);
-      wheelchairAccessible.value = value;
+      await saveRoutingPreferences(settings);
+      featurePriorities.value = settings;
     } catch {
       error.value = t("errors.preferences");
     } finally {
@@ -41,11 +42,11 @@ export const usePreferencesStore = defineStore("preferences", () => {
     try {
       const remote = await fetchRoutingPreferences();
       if (await adoptRemoteRoutingPreferences(remote))
-        wheelchairAccessible.value = remote.wheelchairAccessible;
+        featurePriorities.value = remote.featurePriorities;
     } catch {
       /* Offline: the local value stays until the next sync. */
     }
   }
 
-  return { wheelchairAccessible, saving, error, load, save, refresh };
+  return { featurePriorities, saving, error, load, save, refresh };
 });

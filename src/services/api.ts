@@ -1,7 +1,12 @@
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
-import type { MapFeature, PolygonGeometry } from "../types/map-feature";
-import type { RemoteRoutingPreferences, RoutingPreferences } from "../types/preferences";
+import type { MapFeature } from "../types/map-feature";
+import type {
+  FeaturePrioritySettings,
+  PriorityArea,
+  RemoteRoutingPreferences,
+  RoutingPreferences,
+} from "../types/preferences";
 import type { RoutePoint, WalkingRoute } from "../types/routing";
 import { t } from "../i18n";
 
@@ -39,14 +44,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export function getWalkingRoute(
   start: RoutePoint,
   end: RoutePoint,
-  wheelchairAccessible: boolean,
-  staircaseAreas: PolygonGeometry[],
+  featurePriorities: FeaturePrioritySettings,
+  priorityAreas: PriorityArea[],
   signal: AbortSignal,
 ) {
   return request<WalkingRoute>("/routes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ start, end, wheelchairAccessible, staircaseAreas }),
+    body: JSON.stringify({ start, end, featurePriorities, priorityAreas }),
     signal,
   });
 }
@@ -138,7 +143,7 @@ export function uploadRoutingPreferences(prefs: RoutingPreferences) {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      wheelchairAccessible: prefs.wheelchairAccessible,
+      featurePriorities: prefs.featurePriorities,
       revision: prefs.revision,
     }),
   });

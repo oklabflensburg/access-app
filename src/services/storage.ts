@@ -3,7 +3,9 @@ import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
 import { mapFeatureTypes, type MapFeature, type MapFeatureType } from "../types/map-feature";
 import {
+  defaultFeaturePriorities,
   routingPreferencesId,
+  type FeaturePrioritySettings,
   type RemoteRoutingPreferences,
   type RoutingPreferences,
 } from "../types/preferences";
@@ -26,6 +28,21 @@ class ObservationDatabase extends Dexie {
     this.version(2).stores({
       preferences: "id, updatedAt, syncStatus",
     });
+    this.version(3)
+      .stores({
+        preferences: "id, updatedAt, syncStatus",
+      })
+      .upgrade(async (tx) => {
+        // Migrate the pre-priority preference record (wheelchairAccessible boolean).
+        await tx.table("preferences").toCollection().modify((prefs) => {
+          if (prefs.featurePriorities) return;
+          prefs.featurePriorities = {
+            ...defaultFeaturePriorities(),
+            ...(prefs.wheelchairAccessible ? { staircase: "avoid" } : {}),
+          };
+          delete prefs.wheelchairAccessible;
+        });
+      });
   }
 }
 
@@ -214,7 +231,7 @@ export async function getRoutingPreferences(): Promise<RoutingPreferences> {
   return (
     stored ?? {
       id: routingPreferencesId,
-      wheelchairAccessible: false,
+      featurePriorities: defaultFeaturePriorities(),
       revision: 0,
       updatedAt: new Date(0).toISOString(),
       syncStatus: "synced",
@@ -226,12 +243,12 @@ export async function getRoutingPreferences(): Promise<RoutingPreferences> {
 }
 
 export async function saveRoutingPreferences(
-  wheelchairAccessible: boolean,
+  featurePriorities: FeaturePrioritySettings,
 ): Promise<RoutingPreferences> {
   const current = await getRoutingPreferences();
   const updated: RoutingPreferences = {
     ...current,
-    wheelchairAccessible,
+    featurePriorities,
     revision: current.revision + 1,
     updatedAt: new Date().toISOString(),
     syncStatus: "ready",
@@ -252,7 +269,7 @@ export async function adoptRemoteRoutingPreferences(
   if (remote.revision < local.revision) return false;
   await database.preferences.put({
     id: routingPreferencesId,
-    wheelchairAccessible: remote.wheelchairAccessible,
+    featurePriorities: remote.featurePriorities,
     revision: remote.revision,
     updatedAt: remote.updatedAt,
     syncStatus: "synced",
