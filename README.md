@@ -127,7 +127,7 @@ Collection responses are `{ observations, nextCursor }`, ordered by descending U
 
 Payloads include `id` (UUID v4), `revision`, `createdAt`, `location`, `accessibility`, `comment`, `photoIds`, and optional `noise`, `motion`, and `light`. See the shared TypeScript types and API integration tests for examples. Invalid input, conflicting revisions, unauthorized edits, oversized uploads, and missing records return JSON errors with appropriate HTTP status codes.
 
-Map-feature creation accepts a UUID, creation time, a type (`area`, `building`, `entrance`, `staircase`, `ramp`, `toilet`, `elevator`, or `path`), an optional name, and GeoJSON `Polygon` geometry. Rings must be explicitly closed, contain 3–500 vertices, use longitude/latitude coordinates, and form a valid non-self-intersecting area. The edit token is sent only in the Authorization header and makes offline retries idempotent.
+Map-feature creation accepts a UUID, creation time, a type (`area`, `building`, `entrance`, `staircase`, `ramp`, `toilet`, `elevator`, or `path`), an optional name, and GeoJSON `Polygon` geometry. Rings must be explicitly closed, contain 3–500 vertices, use longitude/latitude coordinates, and form a valid non-self-intersecting area. A child feature must lie fully within its parent, except that a `path` crossing another `path` is parented to the crossed way, matching the client's way drawing. The edit token is sent only in the Authorization header and makes offline retries idempotent.
 
 ## Verification
 

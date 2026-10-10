@@ -35,6 +35,10 @@ final readonly class ApiExceptionSubscriber implements EventSubscriberInterface
         if (500 === $status) {
             $this->logger->error('Unhandled API error: '.$error::class.': '.$error->getMessage(), ['exception' => $error]);
         }
+        // TODO: temporary debug logging, remove after diagnosing sync 400s
+        if ($status < 500) {
+            $this->logger->warning('API '.$status.' '.$event->getRequest()->getMethod().' '.$event->getRequest()->getPathInfo().': '.$error->getMessage().' | body: '.substr($event->getRequest()->getContent(), 0, 2000));
+        }
         $message = $status >= 500 ? 'The server could not complete the request. Please retry.' : $error->getMessage();
         $body = ['error' => $message];
         if ('/api/routes' === $event->getRequest()->getPathInfo()) {

@@ -89,6 +89,77 @@ final class ObservationControllerTest extends WebTestCase
         self::assertResponseStatusCodeSame(400);
     }
 
+    public function testCrossingPathIsAValidChildOfAnotherPath(): void
+    {
+        $client = static::createClient();
+        $headers = ['HTTP_AUTHORIZATION' => 'Bearer '.$this->uuid()];
+        $parentId = $this->uuid();
+        $client->jsonRequest('POST', '/api/map-features', [
+            'id' => $parentId,
+            'type' => 'path',
+            'name' => 'Main way',
+            'createdAt' => '2026-10-10T10:00:00.000Z',
+            'geometry' => [
+                'type' => 'Polygon',
+                'coordinates' => [[
+                    [13.400, 52.500], [13.410, 52.500], [13.410, 52.5002], [13.400, 52.5002], [13.400, 52.500],
+                ]],
+            ],
+        ], $headers);
+        self::assertResponseIsSuccessful();
+
+        // The client parents a way that crosses another way to the crossed way.
+        $client->jsonRequest('POST', '/api/map-features', [
+            'id' => $this->uuid(),
+            'type' => 'path',
+            'name' => 'Crossing way',
+            'createdAt' => '2026-10-10T10:01:00.000Z',
+            'parentFeatureId' => $parentId,
+            'geometry' => [
+                'type' => 'Polygon',
+                'coordinates' => [[
+                    [13.405, 52.499], [13.4052, 52.499], [13.4052, 52.501], [13.405, 52.501], [13.405, 52.499],
+                ]],
+            ],
+        ], $headers);
+        self::assertResponseIsSuccessful();
+
+        // A path that does not touch its parent path is still rejected.
+        $client->jsonRequest('POST', '/api/map-features', [
+            'id' => $this->uuid(),
+            'type' => 'path',
+            'name' => 'Detached way',
+            'createdAt' => '2026-10-10T10:02:00.000Z',
+            'parentFeatureId' => $parentId,
+            'geometry' => [
+                'type' => 'Polygon',
+                'coordinates' => [[
+                    [13.420, 52.499], [13.4202, 52.499], [13.4202, 52.501], [13.420, 52.501], [13.420, 52.499],
+                ]],
+            ],
+        ], $headers);
+        self::assertResponseStatusCodeSame(400);
+
+        // Areas still require full containment; overlapping is not enough.
+        $client->jsonRequest('POST', '/api/map-features', [
+            'id' => $this->uuid(),
+            'type' => 'area',
+            'name' => 'Overlapping area',
+            'createdAt' => '2026-10-10T10:03:00.000Z',
+            'parentFeatureId' => $parentId,
+            'geometry' => [
+                'type' => 'Polygon',
+                'coordinates' => [[
+                    [13.405, 52.4999], [13.406, 52.4999], [13.406, 52.5003], [13.405, 52.5003], [13.405, 52.4999],
+                ]],
+            ],
+        ], $headers);
+        self::assertResponseStatusCodeSame(400);
+
+        static::getContainer()->get('doctrine.dbal.default_connection')
+            ->executeStatement('DELETE FROM map_features WHERE id = :id', ['id' => $parentId]);
+    }
+
     public function testObservationLifecycleAndAuthorization(): void
     {
         $client = static::createClient();
