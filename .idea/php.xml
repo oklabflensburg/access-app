@@ -102,6 +102,8 @@
       <path value="$PROJECT_DIR$/backend/vendor/doctrine/instantiator" />
       <path value="$PROJECT_DIR$/backend/vendor/phpunit/php-text-template" />
       <path value="$PROJECT_DIR$/backend/vendor/doctrine/orm" />
+      <path value="$PROJECT_DIR$/backend/vendor/symfony/http-client-contracts" />
+      <path value="$PROJECT_DIR$/backend/vendor/symfony/http-client" />
     </include_path>
   </component>
   <component name="PhpProjectSharedConfiguration" php_language_level="8.5" />

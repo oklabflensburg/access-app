@@ -167,7 +167,7 @@ main {
 .map-frame {
   position: relative;
   border-radius: 18px;
-  overflow: hidden;
+  overflow: clip;
   border: 1px solid #bdcbbd;
 }
 .map {
@@ -225,6 +225,7 @@ main {
   margin-top: 16px;
 }
 .map-warning {
+  pointer-events: none;
   position: absolute;
   bottom: 30px;
   left: 12px;
@@ -692,6 +693,36 @@ input::file-selector-button {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.routing-panel {
+  position: fixed;
+  top: 76px;
+  right: 14px;
+  z-index: 700;
+  width: min(380px, calc(100% - 78px));
+  max-height: calc(100dvh - 130px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid #cbded2;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 6px 24px #0002;
+}
+.routing-panel h2 { margin: 0; font-size: 1.15rem; }
+.routing-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.routing-actions button { padding: 8px 12px; font-size: 0.9rem; }
+.route-marker span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50% 50% 50% 0;
+  background: #5145cd;
+  color: #fff;
+  border: 2px solid #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 6px #0005;
 }
 .feature-panel-close {
   min-width: 44px;

@@ -33,7 +33,8 @@ final class MapFeatureService
         if (!$this->features->isValidPolygon($geometry)) {
             throw new BadRequestHttpException('The polygon is not a valid, non-self-intersecting area.');
         }
-        if ($input->parentFeatureId !== null && !$this->features->isContainedBy($geometry, $input->parentFeatureId)) {
+        if ($input->parentFeatureId !== null
+            && !$this->features->acceptsChild($geometry, $input->parentFeatureId, $input->type)) {
             throw new BadRequestHttpException('A child map feature must be contained within its parent feature.');
         }
 

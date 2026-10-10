@@ -31,17 +31,25 @@ final class MapFeatureRepository
         );
     }
 
-    public function isContainedBy(string $geometry, string $parentId): bool
+    /**
+     * A child is valid inside an enclosing parent feature, or — like the
+     * client's way drawing — when a path crosses another path.
+     */
+    public function acceptsChild(string $geometry, string $parentId, string $childType): bool
     {
         return (bool) $this->connection->fetchOne(<<<'SQL'
-            SELECT ST_Covers(parent.geometry, child.geometry)
+            SELECT CASE WHEN parent_type.code = 'path' AND :child_type = 'path'
+                THEN ST_Intersects(parent.geometry, child.geometry)
+                ELSE ST_Covers(parent.geometry, child.geometry)
+            END
             FROM map_features parent
+            JOIN map_feature_types parent_type ON parent_type.id = parent.type_id
             CROSS JOIN (
                 SELECT ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326) AS geometry
             ) child
             WHERE parent.id = :parent_id AND parent.status = 'active'
                 AND GeometryType(parent.geometry) = 'POLYGON'
-            SQL, ['geometry' => $geometry, 'parent_id' => $parentId]);
+            SQL, ['geometry' => $geometry, 'parent_id' => $parentId, 'child_type' => $childType]);
     }
 
     public function insertIfAbsent(

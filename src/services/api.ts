@@ -1,6 +1,13 @@
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
 import type { MapFeature } from "../types/map-feature";
+import type {
+  FeaturePrioritySettings,
+  PriorityArea,
+  RemoteRoutingPreferences,
+  RoutingPreferences,
+} from "../types/preferences";
+import type { RoutePoint, WalkingRoute } from "../types/routing";
 import { t } from "../i18n";
 
 const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -8,14 +15,21 @@ const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api";
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20000);
+  const signal = options.signal
+    ? AbortSignal.any([controller.signal, options.signal])
+    : controller.signal;
   try {
     const response = await fetch(`${apiBase}${path}`, {
       ...options,
-      signal: controller.signal,
+      signal,
     });
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new Error(body?.error ?? t("errors.server", { status: response.status }));
+      throw new Error(
+        path === "/routes"
+          ? t(`routing.errors.${body?.code ?? "failed"}`)
+          : body?.error ?? t("errors.server", { status: response.status }),
+      );
     }
     return (await response.json()) as T;
   } catch (cause) {
@@ -25,6 +39,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function getWalkingRoute(
+  start: RoutePoint,
+  end: RoutePoint,
+  featurePriorities: FeaturePrioritySettings,
+  priorityAreas: PriorityArea[],
+  signal: AbortSignal,
+) {
+  return request<WalkingRoute>("/routes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ start, end, featurePriorities, priorityAreas }),
+    signal,
+  });
 }
 const headers = (o: Observation) => ({
   Authorization: `Bearer ${o.editToken}`,
@@ -103,4 +132,19 @@ export function removeRemoteMapFeature(feature: MapFeature) {
 
 export function getPublicMapFeatures() {
   return request<{ features: MapFeature[] }>("/map-features?limit=200");
+}
+
+export function fetchRoutingPreferences() {
+  return request<RemoteRoutingPreferences & { id: string }>("/preferences/routing");
+}
+
+export function uploadRoutingPreferences(prefs: RoutingPreferences) {
+  return request<RemoteRoutingPreferences & { id: string }>("/preferences/routing", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      featurePriorities: prefs.featurePriorities,
+      revision: prefs.revision,
+    }),
+  });
 }

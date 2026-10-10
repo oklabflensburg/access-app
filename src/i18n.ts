@@ -2,6 +2,31 @@ import { createI18n } from "vue-i18n";
 
 export const messages = {
   de: {
+    routing: {
+      title: "Route planen",
+      close: "Routenplanung schließen",
+      pickStart: "Wählen Sie den Startpunkt auf der Karte.",
+      pickEnd: "Wählen Sie das Ziel auf der Karte.",
+      loading: "Fußweg wird berechnet…",
+      distance: "Kürzester Fußweg: {distance}",
+      changeStart: "Start ändern",
+      changeEnd: "Ziel ändern",
+      retry: "Erneut versuchen",
+      clear: "Route zurücksetzen",
+      start: "A: Start",
+      end: "B: Ziel",
+      useCenter: "Kartenmitte wählen",
+      snapHint: "Gepunktete Linien verbinden Ihre Punkte mit dem Wegenetz und zählen nicht zur Streckenlänge.",
+      errors: {
+        identical_points: "Start und Ziel müssen verschieden sein.",
+        invalid_input: "Bitte wählen Sie gültige Start- und Zielpunkte.",
+        no_route: "Kein Fußweg gefunden. Wählen Sie Punkte näher am Wegenetz im Raum Flensburg.",
+        unavailable: "Routenberechnung ist vorübergehend nicht verfügbar. Bitte erneut versuchen.",
+        invalid_response: "Der Routendienst hat eine ungültige Antwort geliefert. Bitte erneut versuchen.",
+        offline: "Offline. Für eine neue Route ist eine Verbindung zum Server erforderlich.",
+        failed: "Die Route konnte nicht berechnet werden. Bitte erneut versuchen.",
+      },
+    },
     app: {
       skip: "Zum Inhalt",
       footer: "Lokal gespeichert",
@@ -16,9 +41,22 @@ export const messages = {
       objects: "Objekte",
       observations: "Beobachtungen",
       create: "Anlegen",
+      createPath: "Weg anlegen",
       createObservation: "Beobachtung anlegen",
       myObjects: "Meine Objekte",
       myObservations: "Meine Beobachtungen",
+      preferences: "Routeneinstellungen",
+    },
+    preferences: {
+      title: "Routeneinstellungen",
+      priorityHint: "Legen Sie je Objekttyp fest, wie gezeichnete Objekte dieser Art die Route beeinflussen.",
+      priorities: {
+        neutral: "Neutral",
+        avoid: "Vermeiden",
+        reduce: "Eher vermeiden",
+        prefer: "Bevorzugen",
+      },
+      saveHint: "Wird lokal gespeichert und später synchronisiert. Die Einstellung gilt derzeit geräteübergreifend für alle Nutzer.",
     },
     map: {
       title: "Karte",
@@ -37,7 +75,7 @@ export const messages = {
       retry: "Erneut laden",
       yourLocation: "Ihr Standort",
       mapLabel: "Barrierefreiheitskarte",
-      mapHelp: "Karte. Mit Pfeiltasten verschieben, mit Plus und Minus zoomen. Einen neuen Eintrag legen Sie über „Beobachtung anlegen“ an, indem Sie danach einen Punkt auf der Karte wählen.",
+      mapHelp: "Karte. Mit Pfeiltasten verschieben, mit Plus und Minus zoomen. Über „Route planen“ wählen Sie Start und Ziel per Klick oder mit „Kartenmitte wählen“. Einen neuen Eintrag legen Sie über „Beobachtung anlegen“ an, indem Sie danach einen Punkt auf der Karte wählen.",
       mapError: "Kartendaten konnten teilweise nicht geladen werden.",
       accessible: "Rollstuhlgerecht",
       notAccessible: "Nicht rollstuhlgerecht",
@@ -45,6 +83,10 @@ export const messages = {
       entry: "Eintrag {number}: {label}",
       noComment: "Kein Kommentar.",
       drawControls: "Fläche zeichnen",
+      drawPathControls: "Weg zeichnen",
+      drawPathInstruction: "Klicken Sie den Startpunkt, weitere Wegpunkte und den Endpunkt auf der Karte. Mit „Speichern“ beenden Sie den Weg. Die Breite beträgt automatisch 2 Meter.",
+      invalidPath: "Der Weg darf sich nicht kreuzen oder zurücklaufen. Nehmen Sie den letzten Punkt zurück und wählen Sie einen anderen Verlauf.",
+      pathPointLimit: "Ein Weg kann höchstens {count} Punkte haben. Speichern Sie den Weg oder nehmen Sie einen Punkt zurück.",
       pickPointControls: "Punkt wählen",
       pickObservationPoint: "Wählen Sie einen Punkt auf der Karte, um dort eine Beobachtung anzulegen.",
       cancelPicking: "Abbrechen",
@@ -55,6 +97,8 @@ export const messages = {
       drawsAsChild: "Wird als Unterobjekt von „{name}“ gespeichert.",
       overlapsExistingFeature:
         "Die neue Fläche überlappt „{name}“. Bitte zeichnen Sie sie vollständig innerhalb des bestehenden Objekts oder vollständig außerhalb davon.",
+      overlapsExistingWay:
+        "Der neue Weg überlappt „{name}“. Bitte zeichnen Sie ihn vollständig innerhalb des bestehenden Objekts oder vollständig außerhalb davon.",
 
       undoPoint: "Punkt zurücknehmen",
       cancelDrawing: "Abbrechen",
@@ -246,6 +290,7 @@ export const messages = {
       localPhotoMissing: "Ein lokales Foto fehlt.",
       photoAcknowledgement: "Foto konnte nicht bestätigt werden.",
       areaAcknowledgement: "Die Fläche konnte nicht bestätigt werden.",
+      preferences: "Einstellungen konnten nicht gespeichert werden.",
       upload: "Upload fehlgeschlagen.",
     },
   },

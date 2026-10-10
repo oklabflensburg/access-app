@@ -4,13 +4,16 @@ import { RouterLink, RouterView, useRoute, useRouter } from "vue-router";
 import { useSyncStore } from "./stores/sync";
 import { useLocationStore } from "./stores/location";
 import { useMapStore } from "./stores/map";
+import { usePreferencesStore } from "./stores/preferences";
 import { useI18n } from "vue-i18n";
 import SyncPanel from "./components/SyncPanel.vue";
 import PwaStatus from "./components/PwaStatus.vue";
+import type { FeatureDrawingMode } from "./types/map-feature";
 
 const sync = useSyncStore();
 const location = useLocationStore();
 const map = useMapStore();
+const preferences = usePreferencesStore();
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
@@ -18,12 +21,12 @@ const menuOpen = ref(false);
 const mapVisible = computed(() =>
   route.matched.some((record) => record.name === "map"),
 );
-async function startDrawing() {
+async function startDrawing(mode: FeatureDrawingMode = "feature") {
   if (route.name !== "map") {
     await router.push({ name: "map" });
     await nextTick();
   }
-  map.requestDrawing();
+  map.requestDrawing(mode);
   menuOpen.value = false;
 }
 async function startObservationCreation() {
@@ -34,9 +37,19 @@ async function startObservationCreation() {
   map.requestObservationPoint();
   menuOpen.value = false;
 }
+async function startRouting() {
+  if (route.name !== "map") {
+    await router.push({ name: "map" });
+    await nextTick();
+  }
+  map.requestRouting();
+  menuOpen.value = false;
+}
 let stop: (() => void) | undefined;
 onMounted(() => {
   stop = sync.start();
+  void preferences.load();
+  if (navigator.onLine) void preferences.refresh();
 });
 onBeforeUnmount(() => stop?.());
 </script>
@@ -57,8 +70,11 @@ onBeforeUnmount(() => stop?.());
     <nav v-if="menuOpen" id="main-menu" class="mobile-menu" :aria-label="t('app.menu')">
       <section class="menu-group" :aria-labelledby="'objects-menu-heading'">
         <h2 id="objects-menu-heading" class="menu-heading">{{ t("navigation.objects") }}</h2>
-        <button type="button" class="menu-action" @click="startDrawing">
+        <button type="button" class="menu-action" @click="startDrawing()">
           <i class="pi pi-plus" aria-hidden="true" /> {{ t("navigation.create") }}
+        </button>
+        <button type="button" class="menu-action" @click="startDrawing('path')">
+          <i class="pi pi-directions" aria-hidden="true" /> {{ t("navigation.createPath") }}
         </button>
         <RouterLink to="/map-features" @click="menuOpen = false">
           <i class="pi pi-map-marker" aria-hidden="true" /> {{ t("navigation.myObjects") }}
@@ -74,6 +90,12 @@ onBeforeUnmount(() => stop?.());
         </RouterLink>
       </section>
       <SyncPanel class="menu-sync" />
+      <button type="button" class="menu-action" @click="startRouting">
+        <i class="pi pi-directions" aria-hidden="true" /> {{ t("routing.title") }}
+      </button>
+      <RouterLink to="/preferences" @click="menuOpen = false">
+        <i class="pi pi-cog" aria-hidden="true" /> {{ t("navigation.preferences") }}
+      </RouterLink>
     </nav>
     <button
       v-if="mapVisible"

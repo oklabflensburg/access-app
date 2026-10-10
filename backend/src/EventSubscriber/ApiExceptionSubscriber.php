@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\EventSubscriber;
 
+use App\Service\RoutingFailure;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -29,12 +30,22 @@ final readonly class ApiExceptionSubscriber implements EventSubscriberInterface
         }
 
         $error = $event->getThrowable();
-        $status = $error instanceof HttpExceptionInterface ? $error->getStatusCode() : 500;
+        $status = $error instanceof RoutingFailure ? $error->status
+            : ($error instanceof HttpExceptionInterface ? $error->getStatusCode() : 500);
         if (500 === $status) {
             $this->logger->error('Unhandled API error: '.$error::class.': '.$error->getMessage(), ['exception' => $error]);
         }
+        // TODO: temporary debug logging, remove after diagnosing sync 400s
+        if ($status < 500) {
+            $this->logger->warning('API '.$status.' '.$event->getRequest()->getMethod().' '.$event->getRequest()->getPathInfo().': '.$error->getMessage().' | body: '.substr($event->getRequest()->getContent(), 0, 2000));
+        }
         $message = $status >= 500 ? 'The server could not complete the request. Please retry.' : $error->getMessage();
-        $response = new JsonResponse(['error' => $message], $status);
+        $body = ['error' => $message];
+        if ('/api/routes' === $event->getRequest()->getPathInfo()) {
+            $body['code'] = $error instanceof RoutingFailure ? $error->reason
+                : (400 === $status ? 'invalid_input' : 'failed');
+        }
+        $response = new JsonResponse($body, $status);
         $response->headers->set('Cache-Control', 'no-store');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
         if ($error instanceof HttpExceptionInterface) {
