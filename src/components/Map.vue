@@ -53,6 +53,8 @@ const pickingPoint = ref(false);
 
 const {
   drawing,
+  drawingPath,
+  canFinishDrawing,
   choosingParent,
   parentFeature,
   prospectiveParent,
@@ -386,7 +388,9 @@ onBeforeUnmount(() => {
         {{ t("map.cancelPicking") }}
       </button>
     </div>
-    <div v-if="drawing || choosingParent" class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
+    <div v-if="drawing || choosingParent" class="drawing-controls" role="group" :aria-label="t(drawingPath ? 'map.drawPathControls' : 'map.drawControls')">
+
+      <p v-if="drawingPath" class="drawing-instruction">{{ t("map.drawPathInstruction") }}</p>
 
       <p v-if="choosingParent" class="drawing-instruction">{{ t("map.chooseParent") }}</p>
       <p v-else-if="parentFeature" class="drawing-instruction">{{ t("map.drawWithinParent") }}</p>
@@ -400,7 +404,7 @@ onBeforeUnmount(() => {
       <button type="button" class="secondary" @click="cancelDrawing">
         {{ t("map.cancelDrawing") }}
       </button>
-      <button v-if="drawing" type="button" class="primary" :disabled="vertices.length < 3" @click="finishDrawing">
+      <button v-if="drawing" type="button" class="primary" :disabled="!canFinishDrawing" @click="finishDrawing">
         {{ t("map.closeAndSave") }}
       </button>
     </div>

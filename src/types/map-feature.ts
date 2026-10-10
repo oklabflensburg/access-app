@@ -1,5 +1,7 @@
 export type PolygonPosition = [longitude: number, latitude: number];
 
+export type FeatureDrawingMode = "feature" | "child" | "path";
+
 export interface PolygonGeometry {
   type: "Polygon";
   coordinates: [PolygonPosition[]];

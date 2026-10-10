@@ -41,6 +41,7 @@ export const messages = {
       objects: "Objekte",
       observations: "Beobachtungen",
       create: "Anlegen",
+      createPath: "Weg anlegen",
       createObservation: "Beobachtung anlegen",
       myObjects: "Meine Objekte",
       myObservations: "Meine Beobachtungen",
@@ -70,6 +71,10 @@ export const messages = {
       entry: "Eintrag {number}: {label}",
       noComment: "Kein Kommentar.",
       drawControls: "Fläche zeichnen",
+      drawPathControls: "Weg zeichnen",
+      drawPathInstruction: "Klicken Sie den Startpunkt, weitere Wegpunkte und den Endpunkt auf der Karte. Mit „Speichern“ beenden Sie den Weg. Die Breite beträgt automatisch 2 Meter.",
+      invalidPath: "Der Weg darf sich nicht kreuzen oder zurücklaufen. Nehmen Sie den letzten Punkt zurück und wählen Sie einen anderen Verlauf.",
+      pathPointLimit: "Ein Weg kann höchstens {count} Punkte haben. Speichern Sie den Weg oder nehmen Sie einen Punkt zurück.",
       pickPointControls: "Punkt wählen",
       pickObservationPoint: "Wählen Sie einen Punkt auf der Karte, um dort eine Beobachtung anzulegen.",
       cancelPicking: "Abbrechen",
@@ -80,6 +85,8 @@ export const messages = {
       drawsAsChild: "Wird als Unterobjekt von „{name}“ gespeichert.",
       overlapsExistingFeature:
         "Die neue Fläche überlappt „{name}“. Bitte zeichnen Sie sie vollständig innerhalb des bestehenden Objekts oder vollständig außerhalb davon.",
+      overlapsExistingWay:
+        "Der neue Weg überlappt „{name}“. Bitte zeichnen Sie ihn vollständig innerhalb des bestehenden Objekts oder vollständig außerhalb davon.",
 
       undoPoint: "Punkt zurücknehmen",
       cancelDrawing: "Abbrechen",

@@ -1,5 +1,5 @@
 import L from "leaflet";
-import type { MapFeature, PolygonPosition } from "../../types/map-feature";
+import type { MapFeature, MapFeatureType, PolygonPosition } from "../../types/map-feature";
 
 export interface RingBounds {
   minLongitude: number;
@@ -171,9 +171,23 @@ export function featureDepth(feature: MapFeature, features: MapFeature[]): numbe
   return depth;
 }
 
+function deepestSmallestFeature(
+  best: MapFeature,
+  candidate: MapFeature,
+  features: MapFeature[],
+): MapFeature {
+  const depthDelta = featureDepth(candidate, features) - featureDepth(best, features);
+  if (depthDelta > 0) return candidate;
+  if (depthDelta === 0
+    && ringArea(openRing(candidate.geometry.coordinates[0]))
+      < ringArea(openRing(best.geometry.coordinates[0]))) return candidate;
+  return best;
+}
+
 export function detectParentFeature(
   positions: PolygonPosition[],
   features: MapFeature[],
+  drawnType?: MapFeatureType,
 ): { parent: MapFeature | null; conflict: MapFeature | null } {
   const positionBounds = ringBounds(positions);
   const overlapping = features.filter((feature) =>
@@ -181,14 +195,15 @@ export function detectParentFeature(
   const containers = overlapping.filter((feature) =>
     featureContainsRing(feature, positions));
   if (containers.length) {
-    const parent = containers.reduce((best, candidate) => {
-      const depthDelta = featureDepth(candidate, features) - featureDepth(best, features);
-      if (depthDelta > 0) return candidate;
-      if (depthDelta === 0
-        && ringArea(openRing(candidate.geometry.coordinates[0]))
-          < ringArea(openRing(best.geometry.coordinates[0]))) return candidate;
-      return best;
-    });
+    const parent = containers.reduce(
+      (best, candidate) => deepestSmallestFeature(best, candidate, features));
+    return { parent, conflict: null };
+  }
+  // A way that overlaps only ways becomes a child of the crossed way.
+  if (drawnType === "path" && overlapping.length
+    && overlapping.every((feature) => feature.type === "path")) {
+    const parent = overlapping.reduce(
+      (best, candidate) => deepestSmallestFeature(best, candidate, features));
     return { parent, conflict: null };
   }
   return { parent: null, conflict: overlapping[0] ?? null };
@@ -202,12 +217,5 @@ export function detectParentFeatureForPoint(
   const point = L.latLng(latitude, longitude);
   const containers = features.filter((feature) => containsPoint(feature, point));
   if (!containers.length) return null;
-  return containers.reduce((best, candidate) => {
-    const depthDelta = featureDepth(candidate, features) - featureDepth(best, features);
-    if (depthDelta > 0) return candidate;
-    if (depthDelta === 0
-      && ringArea(openRing(candidate.geometry.coordinates[0]))
-        < ringArea(openRing(best.geometry.coordinates[0]))) return candidate;
-    return best;
-  });
+  return containers.reduce((best, candidate) => deepestSmallestFeature(best, candidate, features));
 }
