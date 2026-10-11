@@ -61,9 +61,9 @@ final class MapFeatureService
             if (($current['parent_feature_id'] ?? null) !== $input->parentFeatureId) {
                 throw new ConflictHttpException('A different parent map feature already uses this id.');
             }
-            $currentOsmWayId = isset($current['osm_way_id']) ? (int) $current['osm_way_id'] : null;
-            if ($currentOsmWayId !== $input->osmWayId) {
-                throw new ConflictHttpException('A different OSM way already uses this id.');
+            $currentOsmId = isset($current['osm_id']) ? (int) $current['osm_id'] : null;
+            if ($currentOsmId !== $input->osmId) {
+                throw new ConflictHttpException('A different OSM object already uses this id.');
             }
             if ($current['type'] !== $input->type || $current['name'] !== $input->name) {
                 $updated = $this->features->updateProperties($input->id, $input->type, $input->name);
@@ -112,7 +112,7 @@ final class MapFeatureService
                 'geometry' => json_decode($row['geometry'], true, flags: JSON_THROW_ON_ERROR),
                 'createdAt' => (new \DateTimeImmutable($row['created_at']))->format(DATE_ATOM),
                 'parentFeatureId' => $row['parent_feature_id'],
-                'osmWayId' => $row['osm_way_id'] === null ? null : (int) $row['osm_way_id'],
+                'osmId' => $row['osm_id'] === null ? null : (int) $row['osm_id'],
             ];
         }, $rows)];
     }

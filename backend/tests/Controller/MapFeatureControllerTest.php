@@ -20,11 +20,11 @@ final class MapFeatureControllerTest extends WebTestCase
     }
 
     /** @return array<string, mixed> */
-    private function payload(?int $osmWayId): array
+    private function payload(?int $osmId): array
     {
         return [
             'id' => $this->featureId,
-            'type' => 'staircase',
+            'type' => 'steps',
             'name' => 'Bahnhofstreppe',
             'geometry' => [
                 'type' => 'Polygon',
@@ -38,7 +38,7 @@ final class MapFeatureControllerTest extends WebTestCase
             ],
             'createdAt' => '2026-10-11T10:00:00+00:00',
             'parentFeatureId' => null,
-            'osmWayId' => $osmWayId,
+            'osmId' => $osmId,
         ];
     }
 
@@ -60,8 +60,8 @@ final class MapFeatureControllerTest extends WebTestCase
             fn (array $feature): bool => $feature['id'] === $this->featureId,
         ))[0] ?? null;
         self::assertNotNull($feature);
-        self::assertSame(4016315, $feature['osmWayId']);
-        self::assertSame('staircase', $feature['type']);
+        self::assertSame(4016315, $feature['osmId']);
+        self::assertSame('steps', $feature['type']);
 
         // The sync queue re-uploads unchanged features; the id must stay stable.
         $client->jsonRequest('POST', '/api/map-features', $this->payload(4016315), [
@@ -91,7 +91,7 @@ final class MapFeatureControllerTest extends WebTestCase
             fn (array $feature): bool => $feature['id'] === $this->featureId,
         ))[0] ?? null;
         self::assertNotNull($feature);
-        self::assertNull($feature['osmWayId']);
+        self::assertNull($feature['osmId']);
     }
 
     public function testInvalidOsmWayIdIsRejected(): void
@@ -100,8 +100,8 @@ final class MapFeatureControllerTest extends WebTestCase
         $this->cleanup();
         $client->disableReboot();
 
-        foreach ([0, -5] as $osmWayId) {
-            $client->jsonRequest('POST', '/api/map-features', $this->payload($osmWayId), [
+        foreach ([0, -5] as $osmId) {
+            $client->jsonRequest('POST', '/api/map-features', $this->payload($osmId), [
                 'HTTP_AUTHORIZATION' => 'Bearer '.$this->editToken,
             ]);
             self::assertResponseStatusCodeSame(400);

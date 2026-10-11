@@ -1,9 +1,24 @@
-import type { OsmStepWay, PolygonGeometry, PolygonPosition } from "../../types/map-feature";
+import type { MapFeatureType, OsmFeature, PolygonGeometry, PolygonPosition } from "../../types/map-feature";
 import { createPathGeometry } from "./pathGeometry";
 
 const EARTH_RADIUS = 6371000;
 const RADIANS = Math.PI / 180;
 type Point = [x: number, y: number];
+
+/**
+ * Classifies extract features by their OSM tags; the first matching rule wins,
+ * so a ramped staircase (highway=steps + ramp=wheelchair) stays steps. Extend
+ * this table together with the extraction filters to import more kinds.
+ */
+const classificationRules: readonly {
+  type: MapFeatureType;
+  tags: Record<string, string>;
+}[] = [
+  { type: "steps", tags: { highway: "steps" } },
+  { type: "ramp", tags: { ramp: "wheelchair" } },
+  { type: "elevator", tags: { highway: "elevator" } },
+  { type: "toilets", tags: { amenity: "toilets" } },
+];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -15,7 +30,7 @@ function isPosition(value: unknown): value is PolygonPosition {
     && typeof value[1] === "number" && Number.isFinite(value[1]);
 }
 
-function wayId(feature: Record<string, unknown>): number | null {
+function featureId(feature: Record<string, unknown>): number | null {
   const properties = isRecord(feature.properties) ? feature.properties : {};
   const raw = feature.id ?? properties.id;
   if (typeof raw === "number" && Number.isInteger(raw) && raw > 0) return raw;
@@ -25,30 +40,49 @@ function wayId(feature: Record<string, unknown>): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-/** Parse the static steps extract; keeps only the staircase ways (LineStrings). */
-export function parseOsmStepsGeoJson(data: unknown): OsmStepWay[] {
+function classify(properties: Record<string, unknown>): MapFeatureType | null {
+  for (const rule of classificationRules) {
+    if (Object.entries(rule.tags).every(([tag, value]) => properties[tag] === value))
+      return rule.type;
+  }
+  return null;
+}
+
+/**
+ * Parse the static OSM extract; keeps classified ways (LineStrings) and nodes
+ * (Points) and drops everything else, e.g. area polygons and unclassified
+ * referenced nodes.
+ */
+export function parseOsmFeaturesGeoJson(data: unknown): OsmFeature[] {
   if (!isRecord(data) || data.type !== "FeatureCollection" || !Array.isArray(data.features))
     return [];
-  const ways: OsmStepWay[] = [];
-  const seen = new Set<number>();
+  const features: OsmFeature[] = [];
+  const seen = new Set<string>();
   for (const entry of data.features) {
     if (!isRecord(entry)) continue;
-    const osmWayId = wayId(entry);
-    if (osmWayId === null || seen.has(osmWayId)) continue;
+    const osmId = featureId(entry);
+    if (osmId === null) continue;
     const geometry = isRecord(entry.geometry) ? entry.geometry : null;
-    if (!geometry || geometry.type !== "LineString" || !Array.isArray(geometry.coordinates))
-      continue;
-    const coordinates = geometry.coordinates.filter(isPosition);
-    if (coordinates.length < 2) continue;
+    if (!geometry || !Array.isArray(geometry.coordinates)) continue;
     const properties = isRecord(entry.properties) ? entry.properties : {};
-    seen.add(osmWayId);
-    ways.push({
-      osmWayId,
-      name: typeof properties.name === "string" ? properties.name.trim() : "",
-      coordinates,
-    });
+    const type = classify(properties);
+    if (!type) continue;
+    const name = typeof properties.name === "string" ? properties.name.trim() : "";
+    if (geometry.type === "LineString") {
+      const way = geometry.coordinates.filter(isPosition);
+      if (way.length < 2) continue;
+      const key = `w${osmId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      features.push({ osmId, type, name, way });
+    } else if (geometry.type === "Point" && isPosition(geometry.coordinates)) {
+      const key = `n${osmId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      features.push({ osmId, type, name, node: geometry.coordinates });
+    }
   }
-  return ways;
+  return features;
 }
 
 function toMetres(positions: PolygonPosition[]): Point[] {
@@ -96,11 +130,11 @@ function simplifyLine(positions: PolygonPosition[], tolerance: number): PolygonP
 }
 
 /**
- * Buffer an OSM staircase way into the same 10 metre corridor polygon used for
- * drawn paths. Ways too long or bent for the buffer limits are simplified with
+ * Buffer an OSM way into the same 10 metre corridor polygon used for drawn
+ * paths. Ways too long or bent for the buffer limits are simplified with
  * growing tolerance first.
  */
-export function staircaseGeometryFromWay(positions: PolygonPosition[]): PolygonGeometry | null {
+export function wayFeatureGeometry(positions: PolygonPosition[]): PolygonGeometry | null {
   const direct = createPathGeometry(positions);
   if (direct) return direct;
   for (const tolerance of [1, 2, 5, 10, 20]) {
@@ -108,4 +142,24 @@ export function staircaseGeometryFromWay(positions: PolygonPosition[]): PolygonG
     if (geometry) return geometry;
   }
   return null;
+}
+
+const NODE_RADIUS_METRES = 5;
+const NODE_CIRCLE_SEGMENTS = 12;
+
+/** Buffer an OSM node into a small circle polygon around its position. */
+export function nodeFeatureGeometry(position: PolygonPosition): PolygonGeometry {
+  const [longitude, latitude] = position;
+  const latitudeScale = EARTH_RADIUS * RADIANS;
+  const longitudeScale = latitudeScale * Math.cos(latitude * RADIANS);
+  const ring: PolygonPosition[] = [];
+  for (let index = 0; index < NODE_CIRCLE_SEGMENTS; index++) {
+    const angle = (2 * Math.PI * index) / NODE_CIRCLE_SEGMENTS;
+    ring.push([
+      longitude + (Math.cos(angle) * NODE_RADIUS_METRES) / longitudeScale,
+      latitude + (Math.sin(angle) * NODE_RADIUS_METRES) / latitudeScale,
+    ]);
+  }
+  ring.push(ring[0]);
+  return { type: "Polygon", coordinates: [ring] };
 }

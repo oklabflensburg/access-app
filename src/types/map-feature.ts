@@ -11,16 +11,16 @@ export const mapFeatureTypes = [
   "area",
   "building",
   "entrance",
-  "staircase",
+  "steps",
   "ramp",
-  "toilet",
+  "toilets",
   "elevator",
   "path",
 ] as const;
 
 export type MapFeatureType = (typeof mapFeatureTypes)[number];
 
-export const pathFeatureTypes: readonly MapFeatureType[] = ["path", "staircase"];
+export const pathFeatureTypes: readonly MapFeatureType[] = ["path", "steps"];
 
 export interface MapFeature {
   id: string;
@@ -29,7 +29,7 @@ export interface MapFeature {
   geometry: PolygonGeometry;
   createdAt: string;
   parentFeatureId?: string | null;
-  osmWayId?: number | null;
+  osmId?: number | null;
   syncStatus?: "ready" | "syncing" | "synced" | "failed";
   editToken?: string;
   lastError?: string;
@@ -39,9 +39,15 @@ export interface MapFeature {
   remoteSynced?: boolean;
 }
 
-/** A staircase way from the static OpenStreetMap extract. */
-export interface OsmStepWay {
-  osmWayId: number;
+/**
+ * A map feature from the static OpenStreetMap extract. Way features carry a
+ * centerline, node features a single position; both become polygon features
+ * when a user adopts them.
+ */
+export interface OsmFeature {
+  osmId: number;
+  type: MapFeatureType;
   name: string;
-  coordinates: PolygonPosition[];
+  way?: PolygonPosition[];
+  node?: PolygonPosition;
 }

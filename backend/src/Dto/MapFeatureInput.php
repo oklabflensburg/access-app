@@ -17,9 +17,9 @@ final readonly class MapFeatureInput
             'area',
             'building',
             'entrance',
-            'staircase',
+            'steps',
             'ramp',
-            'toilet',
+            'toilets',
             'elevator',
             'path',
         ])]
@@ -33,7 +33,7 @@ final readonly class MapFeatureInput
         #[Assert\Uuid(versions: Assert\Uuid::V4_RANDOM)]
         public ?string $parentFeatureId = null,
         #[Assert\Positive]
-        public ?int $osmWayId = null,
+        public ?int $osmId = null,
     ) {
     }
 

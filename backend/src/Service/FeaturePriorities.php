@@ -14,9 +14,9 @@ final class FeaturePriorities
         'area',
         'building',
         'entrance',
-        'staircase',
+        'steps',
         'ramp',
-        'toilet',
+        'toilets',
         'elevator',
         'path',
     ];

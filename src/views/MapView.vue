@@ -5,19 +5,19 @@ import { useI18n } from "vue-i18n";
 import Message from "primevue/message";
 import Map from "../components/Map.vue";
 import FeaturePanel from "../components/FeaturePanel.vue";
-import OsmStepPanel from "../components/OsmStepPanel.vue";
+import OsmFeaturePanel from "../components/OsmFeaturePanel.vue";
 import RoutingPanel from "../components/RoutingPanel.vue";
 import { useRouting } from "../composables/useRouting";
 import { useMapStore } from "../stores/map";
 import { usePublicMapData } from "../composables/usePublicMapData";
 import { useMapFeatures } from "../composables/useMapFeatures";
-import { useOsmSteps } from "../composables/useOsmSteps";
+import { useOsmFeatures } from "../composables/useOsmFeatures";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
-import { staircaseGeometryFromWay } from "../domain/map/osmSteps";
+import { nodeFeatureGeometry, wayFeatureGeometry } from "../domain/map/osmFeatures";
 import { mapFeaturesKey } from "../injectionKeys";
 import type { LocationData } from "../types/location";
-import type { OsmStepWay } from "../types/map-feature";
+import type { OsmFeature } from "../types/map-feature";
 
 const { t } = useI18n();
 const location = useLocationStore();
@@ -41,43 +41,47 @@ const {
   createFeature,
   updateFeature,
 } = useMapFeatures(publicFeatures);
-const { osmSteps, osmStepsError } = useOsmSteps();
+const { osmFeatures, osmFeaturesError } = useOsmFeatures();
 
-const selectedOsmStep = ref<OsmStepWay | null>(null);
-const selectedOsmStepPoint = ref<{ latitude: number; longitude: number } | null>(null);
+const selectedOsmFeature = ref<OsmFeature | null>(null);
+const selectedOsmFeaturePoint = ref<{ latitude: number; longitude: number } | null>(null);
 
-function selectOsmStep(way: OsmStepWay, point: { latitude: number; longitude: number }) {
+function selectOsmFeature(feature: OsmFeature, point: { latitude: number; longitude: number }) {
   closeFeature();
-  selectedOsmStep.value = way;
-  selectedOsmStepPoint.value = point;
+  selectedOsmFeature.value = feature;
+  selectedOsmFeaturePoint.value = point;
 }
 
-function closeOsmStep() {
-  selectedOsmStep.value = null;
-  selectedOsmStepPoint.value = null;
+function closeOsmFeature() {
+  selectedOsmFeature.value = null;
+  selectedOsmFeaturePoint.value = null;
 }
 
 function selectFeatureFromMap(id: string) {
-  closeOsmStep();
+  closeOsmFeature();
   selectFeature(id);
 }
 
-async function adoptOsmStep(forObservation: boolean) {
-  const way = selectedOsmStep.value;
-  const point = selectedOsmStepPoint.value;
-  if (!way || !point) return;
-  const geometry = staircaseGeometryFromWay(way.coordinates);
+async function adoptOsmFeature(forObservation: boolean) {
+  const osmFeature = selectedOsmFeature.value;
+  const point = selectedOsmFeaturePoint.value;
+  if (!osmFeature || !point) return;
+  const geometry = osmFeature.way
+    ? wayFeatureGeometry(osmFeature.way)
+    : osmFeature.node
+      ? nodeFeatureGeometry(osmFeature.node)
+      : null;
   if (!geometry) {
-    featureError.value = t("map.osmStepTooComplex");
+    featureError.value = t("map.osmFeatureTooComplex");
     return;
   }
-  closeOsmStep();
+  closeOsmFeature();
   await createFeature({
     geometry,
-    name: way.name,
-    type: "staircase",
+    name: osmFeature.name,
+    type: osmFeature.type,
     parentFeatureId: null,
-    osmWayId: way.osmWayId,
+    osmId: osmFeature.osmId,
   });
   if (forObservation) {
     void router.push({
@@ -103,7 +107,7 @@ provide(mapFeaturesKey, features);
 
 watch(() => mapStore.routeRequest, () => {
   closeFeature();
-  closeOsmStep();
+  closeOsmFeature();
   routing.open();
 });
 watch(() => route.name, (name) => {
@@ -144,7 +148,7 @@ onMounted(() => void observations.load());
       :location="location.current"
       :observations="markers"
       :features="features"
-      :osm-steps="osmSteps"
+      :osm-features="osmFeatures"
       :owned-observation-ids="ownedObservationIds"
       :routing-active="routing.active.value"
       :route-picking="routing.picking.value"
@@ -154,7 +158,7 @@ onMounted(() => void observations.load());
       @select-observation="editObservation"
       @select-location="addObservationAt"
       @select-feature="selectFeatureFromMap"
-      @select-osm-step="selectOsmStep"
+      @select-osm-feature="selectOsmFeature"
       @create-feature="createFeature"
       @route-point="routing.selectPoint"
       @cancel-route="routing.close"
@@ -183,17 +187,17 @@ onMounted(() => void observations.load());
       @select-parent="selectFeature"
       @update="updateFeature"
     />
-    <OsmStepPanel
-      v-if="selectedOsmStep"
-      :way="selectedOsmStep"
-      @close="closeOsmStep"
-      @adopt="adoptOsmStep(false)"
-      @observe="adoptOsmStep(true)"
+    <OsmFeaturePanel
+      v-if="selectedOsmFeature"
+      :feature="selectedOsmFeature"
+      @close="closeOsmFeature"
+      @adopt="adoptOsmFeature(false)"
+      @observe="adoptOsmFeature(true)"
     />
     <div class="map-status" aria-live="polite">
       <Message v-if="location.error" severity="error" role="alert">{{ location.error }}</Message>
-      <Message v-else-if="featureError || publicError || osmStepsError || observations.error" severity="error" role="alert">
-        {{ featureError || publicError || osmStepsError || observations.error }}
+      <Message v-else-if="featureError || publicError || osmFeaturesError || observations.error" severity="error" role="alert">
+        {{ featureError || publicError || osmFeaturesError || observations.error }}
       </Message>
       <Message v-else-if="featureNotice" severity="success" role="status">
         {{ featureNotice }}

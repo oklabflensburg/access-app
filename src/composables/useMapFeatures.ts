@@ -49,17 +49,17 @@ export function useMapFeatures(publicFeatures: Ref<MapFeature[]>) {
     name,
     type,
     parentFeatureId,
-    osmWayId,
+    osmId,
   }: {
     geometry: PolygonGeometry;
     name: string;
     type: MapFeatureType;
     parentFeatureId: string | null;
-    osmWayId?: number | null;
+    osmId?: number | null;
   }) {
     notice.value = "";
     try {
-      const feature = await saveMapFeature(geometry, name, type, parentFeatureId, osmWayId ?? null);
+      const feature = await saveMapFeature(geometry, name, type, parentFeatureId, osmId ?? null);
       localFeatures.value = await getLocalMapFeatures();
       selectFeature(feature.id);
       const parent = parentFeatureId

@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
 WORKDIR /app
 COPY graphhopper.yml /app/graphhopper.yml
 COPY entrypoint.sh /app/entrypoint.sh
-COPY extract-steps.sh /app/extract-steps.sh
-RUN chmod 755 /app/entrypoint.sh /app/extract-steps.sh
+COPY extract-features.sh /app/extract-features.sh
+RUN chmod 755 /app/entrypoint.sh /app/extract-features.sh
 USER 10001:10001
 EXPOSE 8989
 ENTRYPOINT ["/app/entrypoint.sh"]

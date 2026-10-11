@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const featureTypes = ["area", "building", "entrance", "staircase", "ramp", "toilet", "elevator", "path"] as const;
+const featureTypes = ["area", "building", "entrance", "steps", "ramp", "toilets", "elevator", "path"] as const;
 
 function preference(priorities: Record<string, string>, revision: number) {
   return {
@@ -16,12 +16,12 @@ function preference(priorities: Record<string, string>, revision: number) {
 
 test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
-  await page.route("**/data/steps.geojson", route =>
+  await page.route("**/data/osm-features.geojson", route =>
     route.fulfill({ json: { type: "FeatureCollection", features: [] } }));
   await page.route("**/api/observations?*", route => route.fulfill({ json: { observations: [], nextCursor: null } }));
   await page.route("**/api/map-features?*", route => route.fulfill({ json: { features: [{
-    id: "staircase-1",
-    type: "staircase",
+    id: "steps-1",
+    type: "steps",
     name: "Steps",
     createdAt: "2026-10-10T10:00:00.000Z",
     geometry: { type: "Polygon", coordinates: [[[9.43, 54.78], [9.44, 54.78], [9.44, 54.79], [9.43, 54.78]]] },
@@ -95,7 +95,7 @@ test("feature type priorities are saved locally, synced, and sent with route req
   await clickPoint(page, 0.2, 0.55);
   await clickPoint(page, 0.5, 0.75);
   await expect(page.getByText("Kürzester Fußweg: 1,23 km")).toBeVisible();
-  expect(routeBody?.featurePriorities?.staircase).toBe("avoid");
+  expect(routeBody?.featurePriorities?.steps).toBe("avoid");
   expect(routeBody?.priorityAreas).toEqual([{
     priority: "avoid",
     geometry: {

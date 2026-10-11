@@ -1,5 +1,5 @@
 *
 !Dockerfile
 !entrypoint.sh
-!extract-steps.sh
+!extract-features.sh
 !graphhopper.yml

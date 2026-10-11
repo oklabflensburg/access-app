@@ -42,7 +42,7 @@ final class RoutingService
                 [$input->start->longitude, $input->start->latitude],
                 [$input->end->longitude, $input->end->latitude],
             ],
-            'profile' => 'avoid' === ($priorities['staircase'] ?? 'neutral')
+            'profile' => 'avoid' === ($priorities['steps'] ?? 'neutral')
                 ? 'foot_wheelchair'
                 : 'foot_shortest',
             'points_encoded' => false,

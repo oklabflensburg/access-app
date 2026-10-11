@@ -117,7 +117,7 @@ export function uploadMapFeature(feature: MapFeature) {
       geometry: feature.geometry,
       createdAt: feature.createdAt,
       parentFeatureId: feature.parentFeatureId ?? null,
-      osmWayId: feature.osmWayId ?? null,
+      osmId: feature.osmId ?? null,
     }),
   });
 }

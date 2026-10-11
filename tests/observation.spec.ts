@@ -5,7 +5,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.abort(),
   );
-  await page.route("**/data/steps.geojson", (route) =>
+  await page.route("**/data/osm-features.geojson", (route) =>
     route.fulfill({ json: { type: "FeatureCollection", features: [] } }),
   );
 });

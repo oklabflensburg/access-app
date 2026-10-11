@@ -61,7 +61,7 @@ final class RouteControllerTest extends WebTestCase
         }));
 
         $client->jsonRequest('POST', '/api/routes', self::INPUT + [
-            'featurePriorities' => ['staircase' => 'avoid'],
+            'featurePriorities' => ['steps' => 'avoid'],
         ]);
         self::assertResponseIsSuccessful();
     }
@@ -97,7 +97,7 @@ final class RouteControllerTest extends WebTestCase
         }));
 
         $client->jsonRequest('POST', '/api/routes', self::INPUT + [
-            'featurePriorities' => ['staircase' => 'avoid'],
+            'featurePriorities' => ['steps' => 'avoid'],
             'priorityAreas' => [
                 ['priority' => 'avoid', 'geometry' => $area],
                 ['priority' => 'prefer', 'geometry' => $area],
@@ -152,7 +152,7 @@ final class RouteControllerTest extends WebTestCase
             ['start' => self::INPUT['start'], 'end' => ['latitude' => 54.79, 'longitude' => -181]],
             ['start' => ['latitude' => null, 'longitude' => 9.43], 'end' => self::INPUT['end']],
             ['start' => ['latitude' => 'invalid', 'longitude' => 9.43], 'end' => self::INPUT['end']],
-            self::INPUT + ['featurePriorities' => ['staircase' => 'maybe']],
+            self::INPUT + ['featurePriorities' => ['steps' => 'maybe']],
             self::INPUT + ['featurePriorities' => ['unknown' => 'avoid']],
             self::INPUT + ['priorityAreas' => [['priority' => 'neutral', 'geometry' => ['type' => 'Polygon', 'coordinates' => [[[9, 54], [9, 55], [9.1, 55], [9, 54]]]]]]],
         ] as $input) {
