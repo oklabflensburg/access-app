@@ -9,7 +9,7 @@ export type FeaturePriority = (typeof featurePriorities)[number];
 export type FeaturePrioritySettings = Record<MapFeatureType, FeaturePriority>;
 
 // Feature types currently offered in the route settings; more will follow.
-export const routeSettingFeatureTypes: readonly MapFeatureType[] = ["staircase"];
+export const routeSettingFeatureTypes: readonly MapFeatureType[] = ["steps"];
 
 export function defaultFeaturePriorities(): FeaturePrioritySettings {
   return Object.fromEntries(

@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import {
   mapFeatureTypes,
+  pathFeatureTypes,
   type MapFeature,
   type MapFeatureType,
 } from "../types/map-feature";
@@ -21,6 +22,8 @@ const { t } = useI18n();
 const featureName = ref(props.feature.name);
 const featureType = ref<MapFeatureType>(props.feature.type);
 const canEdit = computed(() => Boolean(props.feature.editToken));
+const typeOptions = computed(() =>
+  pathFeatureTypes.includes(props.feature.type) ? pathFeatureTypes : mapFeatureTypes);
 watch(
   () => props.feature.id,
   () => {
@@ -63,7 +66,7 @@ function submit() {
     />
     <label for="selected-feature-type">{{ t("map.featureType") }}</label>
     <select id="selected-feature-type" v-model="featureType" :disabled="!canEdit">
-      <option v-for="type in mapFeatureTypes" :key="type" :value="type">
+      <option v-for="type in typeOptions" :key="type" :value="type">
         {{ t(`map.featureTypes.${type}`) }}
       </option>
     </select>

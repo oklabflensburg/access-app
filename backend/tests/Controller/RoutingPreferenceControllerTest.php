@@ -31,23 +31,23 @@ final class RoutingPreferenceControllerTest extends WebTestCase
         self::assertSame(0, $data['revision']);
 
         $client->jsonRequest('PUT', '/api/preferences/routing', [
-            'featurePriorities' => ['staircase' => 'avoid'],
+            'featurePriorities' => ['steps' => 'avoid'],
             'revision' => 1,
         ]);
         self::assertResponseIsSuccessful();
         $data = $this->responseData($client);
         self::assertSame('routing', $data['id']);
-        self::assertSame('avoid', $data['featurePriorities']['staircase']);
+        self::assertSame('avoid', $data['featurePriorities']['steps']);
         self::assertSame('neutral', $data['featurePriorities']['ramp']);
         self::assertSame(1, $data['revision']);
 
         $client->jsonRequest('PUT', '/api/preferences/routing', [
-            'featurePriorities' => ['staircase' => 'neutral', 'ramp' => 'prefer'],
+            'featurePriorities' => ['steps' => 'neutral', 'ramp' => 'prefer'],
             'revision' => 2,
         ]);
         self::assertResponseIsSuccessful();
         $data = $this->responseData($client);
-        self::assertSame('neutral', $data['featurePriorities']['staircase']);
+        self::assertSame('neutral', $data['featurePriorities']['steps']);
         self::assertSame('prefer', $data['featurePriorities']['ramp']);
         self::assertSame(2, $data['revision']);
 
@@ -64,20 +64,20 @@ final class RoutingPreferenceControllerTest extends WebTestCase
         $this->resetPreference();
 
         $client->jsonRequest('PUT', '/api/preferences/routing', [
-            'featurePriorities' => ['staircase' => 'avoid'],
+            'featurePriorities' => ['steps' => 'avoid'],
             'revision' => 1,
         ]);
         self::assertResponseIsSuccessful();
 
         $client->jsonRequest('PUT', '/api/preferences/routing', [
-            'featurePriorities' => ['staircase' => 'neutral'],
+            'featurePriorities' => ['steps' => 'neutral'],
             'revision' => 1,
         ]);
         self::assertResponseStatusCodeSame(409);
         self::assertResponseHeaderSame('cache-control', 'no-store, private');
 
         $client->jsonRequest('PUT', '/api/preferences/routing', [
-            'featurePriorities' => ['staircase' => 'neutral'],
+            'featurePriorities' => ['steps' => 'neutral'],
             'revision' => 3,
         ]);
         self::assertResponseStatusCodeSame(409);
@@ -85,7 +85,7 @@ final class RoutingPreferenceControllerTest extends WebTestCase
         // The stored preference is unchanged by the rejected writes.
         $client->request('GET', '/api/preferences/routing');
         $data = $this->responseData($client);
-        self::assertSame('avoid', $data['featurePriorities']['staircase']);
+        self::assertSame('avoid', $data['featurePriorities']['steps']);
         self::assertSame(1, $data['revision']);
     }
 
@@ -97,13 +97,13 @@ final class RoutingPreferenceControllerTest extends WebTestCase
 
         foreach ([
             [],
-            ['featurePriorities' => ['staircase' => 'avoid']],
+            ['featurePriorities' => ['steps' => 'avoid']],
             ['revision' => 1],
             ['featurePriorities' => 'yes', 'revision' => 1],
-            ['featurePriorities' => ['staircase' => 'maybe'], 'revision' => 1],
+            ['featurePriorities' => ['steps' => 'maybe'], 'revision' => 1],
             ['featurePriorities' => ['unknown' => 'avoid'], 'revision' => 1],
-            ['featurePriorities' => ['staircase' => 'avoid'], 'revision' => 0],
-            ['featurePriorities' => ['staircase' => 'avoid'], 'revision' => -1],
+            ['featurePriorities' => ['steps' => 'avoid'], 'revision' => 0],
+            ['featurePriorities' => ['steps' => 'avoid'], 'revision' => -1],
         ] as $payload) {
             $client->jsonRequest('PUT', '/api/preferences/routing', $payload);
             self::assertResponseStatusCodeSame(400);

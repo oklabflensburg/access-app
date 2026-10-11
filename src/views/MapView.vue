@@ -1,19 +1,25 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, provide, ref, watch } from "vue";
 import { RouterView, useRoute, useRouter } from "vue-router";
+import { useI18n } from "vue-i18n";
 import Message from "primevue/message";
 import Map from "../components/Map.vue";
 import FeaturePanel from "../components/FeaturePanel.vue";
+import OsmFeaturePanel from "../components/OsmFeaturePanel.vue";
 import RoutingPanel from "../components/RoutingPanel.vue";
 import { useRouting } from "../composables/useRouting";
 import { useMapStore } from "../stores/map";
 import { usePublicMapData } from "../composables/usePublicMapData";
 import { useMapFeatures } from "../composables/useMapFeatures";
+import { useOsmFeatures } from "../composables/useOsmFeatures";
 import { useLocationStore } from "../stores/location";
 import { useObservationStore } from "../stores/observation";
+import { nodeFeatureGeometry, wayFeatureGeometry } from "../domain/map/osmFeatures";
 import { mapFeaturesKey } from "../injectionKeys";
 import type { LocationData } from "../types/location";
+import type { OsmFeature } from "../types/map-feature";
 
+const { t } = useI18n();
 const location = useLocationStore();
 const observations = useObservationStore();
 const router = useRouter();
@@ -35,6 +41,58 @@ const {
   createFeature,
   updateFeature,
 } = useMapFeatures(publicFeatures);
+const { osmFeatures, osmFeaturesError } = useOsmFeatures();
+
+const selectedOsmFeature = ref<OsmFeature | null>(null);
+const selectedOsmFeaturePoint = ref<{ latitude: number; longitude: number } | null>(null);
+
+function selectOsmFeature(feature: OsmFeature, point: { latitude: number; longitude: number }) {
+  closeFeature();
+  selectedOsmFeature.value = feature;
+  selectedOsmFeaturePoint.value = point;
+}
+
+function closeOsmFeature() {
+  selectedOsmFeature.value = null;
+  selectedOsmFeaturePoint.value = null;
+}
+
+function selectFeatureFromMap(id: string) {
+  closeOsmFeature();
+  selectFeature(id);
+}
+
+async function adoptOsmFeature(forObservation: boolean) {
+  const osmFeature = selectedOsmFeature.value;
+  const point = selectedOsmFeaturePoint.value;
+  if (!osmFeature || !point) return;
+  const geometry = osmFeature.way
+    ? wayFeatureGeometry(osmFeature.way)
+    : osmFeature.node
+      ? nodeFeatureGeometry(osmFeature.node)
+      : null;
+  if (!geometry) {
+    featureError.value = t("map.osmFeatureTooComplex");
+    return;
+  }
+  closeOsmFeature();
+  await createFeature({
+    geometry,
+    name: osmFeature.name,
+    type: osmFeature.type,
+    parentFeatureId: null,
+    osmId: osmFeature.osmId,
+  });
+  if (forObservation) {
+    void router.push({
+      name: "new-observation",
+      query: {
+        latitude: point.latitude.toString(),
+        longitude: point.longitude.toString(),
+      },
+    });
+  }
+}
 
 const routing = useRouting(() => features.value);
 
@@ -49,6 +107,7 @@ provide(mapFeaturesKey, features);
 
 watch(() => mapStore.routeRequest, () => {
   closeFeature();
+  closeOsmFeature();
   routing.open();
 });
 watch(() => route.name, (name) => {
@@ -89,6 +148,7 @@ onMounted(() => void observations.load());
       :location="location.current"
       :observations="markers"
       :features="features"
+      :osm-features="osmFeatures"
       :owned-observation-ids="ownedObservationIds"
       :routing-active="routing.active.value"
       :route-picking="routing.picking.value"
@@ -97,7 +157,8 @@ onMounted(() => void observations.load());
       :walking-route="routing.result.value"
       @select-observation="editObservation"
       @select-location="addObservationAt"
-      @select-feature="selectFeature"
+      @select-feature="selectFeatureFromMap"
+      @select-osm-feature="selectOsmFeature"
       @create-feature="createFeature"
       @route-point="routing.selectPoint"
       @cancel-route="routing.close"
@@ -126,10 +187,17 @@ onMounted(() => void observations.load());
       @select-parent="selectFeature"
       @update="updateFeature"
     />
+    <OsmFeaturePanel
+      v-if="selectedOsmFeature"
+      :feature="selectedOsmFeature"
+      @close="closeOsmFeature"
+      @adopt="adoptOsmFeature(false)"
+      @observe="adoptOsmFeature(true)"
+    />
     <div class="map-status" aria-live="polite">
       <Message v-if="location.error" severity="error" role="alert">{{ location.error }}</Message>
-      <Message v-else-if="featureError || publicError || observations.error" severity="error" role="alert">
-        {{ featureError || publicError || observations.error }}
+      <Message v-else-if="featureError || publicError || osmFeaturesError || observations.error" severity="error" role="alert">
+        {{ featureError || publicError || osmFeaturesError || observations.error }}
       </Message>
       <Message v-else-if="featureNotice" severity="success" role="status">
         {{ featureNotice }}

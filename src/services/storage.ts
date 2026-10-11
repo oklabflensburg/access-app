@@ -1,7 +1,12 @@
 import Dexie, { type Table } from "dexie";
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
-import { mapFeatureTypes, type MapFeature, type MapFeatureType } from "../types/map-feature";
+import {
+  mapFeatureTypes,
+  type MapFeature,
+  type MapFeatureType,
+  type OsmFeature,
+} from "../types/map-feature";
 import {
   defaultFeaturePriorities,
   routingPreferencesId,
@@ -17,6 +22,7 @@ class ObservationDatabase extends Dexie {
   sensors!: Table<SensorData, string>;
   mapFeatures!: Table<MapFeature, string>;
   preferences!: Table<RoutingPreferences, string>;
+  osmFeatures!: Table<OsmFeaturesCache, string>;
   constructor() {
     super("accessapp");
     this.version(1).stores({
@@ -43,7 +49,55 @@ class ObservationDatabase extends Dexie {
           delete prefs.wheelchairAccessible;
         });
       });
+    this.version(4).stores({
+      osmFeatures: "id",
+    });
+    this.version(5)
+      .stores({
+        osmFeatures: "id",
+      })
+      .upgrade(async (tx) => {
+        // Rename the map feature type codes to OSM tag terminology.
+        const renameType = (type: string): string =>
+          type === "staircase" ? "steps" : type === "toilet" ? "toilets" : type;
+        await tx.table("mapFeatures").toCollection().modify((feature) => {
+          feature.type = renameType(feature.type);
+        });
+        await tx.table("preferences").toCollection().modify((prefs) => {
+          if (!prefs.featurePriorities) return;
+          const priorities = { ...prefs.featurePriorities };
+          if ("staircase" in priorities) {
+            priorities.steps = priorities.staircase;
+            delete priorities.staircase;
+          }
+          if ("toilet" in priorities) {
+            priorities.toilets = priorities.toilet;
+            delete priorities.toilet;
+          }
+          prefs.featurePriorities = priorities;
+        });
+      });
   }
+}
+
+export interface OsmFeaturesCache {
+  id: "osm-features";
+  fetchedAt: string;
+  features: OsmFeature[];
+}
+
+export const osmFeaturesCacheId: OsmFeaturesCache["id"] = "osm-features";
+
+export async function getOsmFeaturesCache(): Promise<OsmFeaturesCache | null> {
+  return (await database.osmFeatures.get(osmFeaturesCacheId)) ?? null;
+}
+
+export async function saveOsmFeaturesCache(features: OsmFeature[]): Promise<void> {
+  await database.osmFeatures.put({
+    id: osmFeaturesCacheId,
+    fetchedAt: new Date().toISOString(),
+    features,
+  });
 }
 
 export const database = new ObservationDatabase();
@@ -53,6 +107,7 @@ export async function saveMapFeature(
   name: string,
   type: MapFeatureType,
   parentFeatureId: string | null = null,
+  osmId: number | null = null,
 ): Promise<MapFeature> {
   const ring = geometry.coordinates[0];
   if (
@@ -77,6 +132,7 @@ export async function saveMapFeature(
     geometry,
     createdAt: new Date().toISOString(),
     parentFeatureId,
+    osmId,
     syncStatus: "ready",
     editToken: crypto.randomUUID(),
     attempts: 0,

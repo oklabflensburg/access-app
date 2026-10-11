@@ -14,7 +14,7 @@ Routing is not a fixed shortest-path service: the route is shaped by the user's 
 2. **Custom model areas** — user-drawn map features are sent with the route request and converted into GraphHopper custom-model areas whose priority factor follows the user's per-type setting: blocked (`avoid`), reduced (`reduce`), or increased (`prefer`). This handles obstacles that are not (yet) in OSM.
 3. **Preference sync** — preferences are stored locally, synced to the backend (`/api/preferences/routing`, revision-based conflict handling), and applied to every route request.
 
-The current implementation realizes this mechanism with **per-feature-type priorities**: the preference is a map from every map feature type (`src/types/map-feature.ts`) to a priority effect — `neutral` (default), `avoid` (priority 0), `reduce` (reduced priority), or `prefer` (increased priority). Drawn features of non-neutral types are sent with the route request and converted into custom-model areas with the matching priority factor. Avoiding staircases additionally selects the `foot_wheelchair` profile, which blocks OSM-mapped steps. Future preferences (e.g. surface quality, slope) plug into the same pipeline: extend the preference model, map it to profile rules and/or custom-model areas in `RoutingService`, and pass the relevant features from the frontend.
+The current implementation realizes this mechanism with **per-feature-type priorities**: the preference is a map from every map feature type (`src/types/map-feature.ts`) to a priority effect — `neutral` (default), `avoid` (priority 0), `reduce` (reduced priority), or `prefer` (increased priority). Drawn features of non-neutral types are sent with the route request and converted into custom-model areas with the matching priority factor. Avoiding steps additionally selects the `foot_wheelchair` profile, which blocks OSM-mapped steps. Future preferences (e.g. surface quality, slope) plug into the same pipeline: extend the preference model, map it to profile rules and/or custom-model areas in `RoutingService`, and pass the relevant features from the frontend.
 
 ## Frontend (Vue)
 
@@ -58,7 +58,7 @@ Shows the current status (pick start / pick end / loading / distance), errors, a
 {
   "start": { "latitude": 54.09, "longitude": 12.10 },
   "end":   { "latitude": 54.10, "longitude": 12.11 },
-  "featurePriorities": { "staircase": "avoid", "ramp": "prefer", "...": "neutral" },
+  "featurePriorities": { "steps": "avoid", "ramp": "prefer", "...": "neutral" },
   "priorityAreas": [ { "priority": "avoid", "geometry": { "type": "Polygon", "coordinates": [...] } } ]
 }
 ```
@@ -78,7 +78,7 @@ All requests have a 20 s timeout. Error responses carry a machine-readable `code
 1. Rejects identical start/end (`identical_points`, 400).
 2. Validates the feature priority map (known types, `neutral`/`avoid`/`reduce`/`prefer`) and the priority areas (only non-neutral priorities, single-ring polygons, 4–501 points per ring, closed rings, finite coordinates within lat/lng bounds); otherwise `invalid_input` (400).
 3. Builds the GraphHopper request:
-   - `profile`: `foot_wheelchair` if staircases are avoided, else `foot_shortest`
+   - `profile`: `foot_wheelchair` if steps are avoided, else `foot_shortest`
    - `points_encoded: false`, no instructions, no elevation
    - when priority areas are present, a **custom model** shapes them: each polygon becomes a named area feature with a priority rule `if: in_<id> → multiply_by <factor>` — `avoid` → 0, `reduce` → 0.5, `prefer` → 2 (factors in `FeaturePriorities::FACTORS`) — and `ch.disable: true` (custom models require flexible routing instead of the precomputed CH graph).
 4. Calls GraphHopper `POST {GRAPHHOPPER_BASE_URL}/route` with a 15 s timeout. Maps failures to error codes:
@@ -110,12 +110,12 @@ The routing preference is a map from every map feature type to a priority effect
 | `reduce` | crossing is allowed, but detours win | `0.5` |
 | `prefer` | the route is drawn toward the area | `2` |
 
-It lives in the preferences store (`src/stores/preferences.ts`), editable in `PreferencesView.vue` (one dropdown per configurable feature type — currently only `staircase`, listed in `routeSettingFeatureTypes` in `src/types/preferences.ts`; more types will be added there). The settings record itself covers every map feature type (defaulting to `neutral`), so enabling a type later requires no migration. It is synced to the backend via `PUT /api/preferences/routing` (revision-based conflict handling, stored as JSONB in `routing_preferences.feature_priorities`; `GET` always returns the complete map with defaults filled in).
+It lives in the preferences store (`src/stores/preferences.ts`), editable in `PreferencesView.vue` (one dropdown per configurable feature type — currently only `steps`, listed in `routeSettingFeatureTypes` in `src/types/preferences.ts`; more types will be added there). The settings record itself covers every map feature type (defaulting to `neutral`), so enabling a type later requires no migration. It is synced to the backend via `PUT /api/preferences/routing` (revision-based conflict handling, stored as JSONB in `routing_preferences.feature_priorities`; `GET` always returns the complete map with defaults filled in).
 
 On each route request the frontend resolves the settings against the drawn features: the full map travels as `featurePriorities` (used for profile selection), and every feature of a non-neutral type becomes a `priorityAreas` entry — the backend applies the priority factor without needing to know the feature's type. The computed route then avoids, disfavors, or prefers crossing those areas.
 
-Avoiding staircases additionally selects the `foot_wheelchair` profile: the profile blocks mapped OSM stairways, the custom model blocks user-reported staircases that may not yet be in OSM.
+Avoiding steps additionally selects the `foot_wheelchair` profile: the profile blocks mapped OSM stairways, the custom model blocks user-reported staircases that may not yet be in OSM.
 
 ### Migration from the wheelchair POC
 
-The preference was originally a single `wheelchairAccessible` boolean (staircases → priority 0). Both stores migrate it automatically: Dexie version 3 (`src/services/storage.ts`) and Doctrine migration `Version20261011000000` convert `wheelchairAccessible = true` into `staircase: avoid` and drop the boolean column/field.
+The preference was originally a single `wheelchairAccessible` boolean (staircases → priority 0). Both stores migrate it automatically: Dexie version 3 (`src/services/storage.ts`) and Doctrine migration `Version20261011000000` convert `wheelchairAccessible = true` into `staircase: avoid` and drop the boolean column/field. The type code was later renamed to OSM terminology: Dexie version 5 and Doctrine migration `Version20261013000000` rename `staircase` to `steps` (and `toilet` to `toilets`).

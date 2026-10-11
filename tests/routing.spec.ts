@@ -4,6 +4,8 @@ test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
   await page.route("**/api/observations?*", route => route.fulfill({ json: { observations: [], nextCursor: null } }));
   await page.route("**/api/map-features?*", route => route.fulfill({ json: { features: [] } }));
+  await page.route("**/data/osm-features.geojson", route =>
+    route.fulfill({ json: { type: "FeatureCollection", features: [] } }));
 });
 
 function result(start: { latitude: number; longitude: number }, end: { latitude: number; longitude: number }, distanceMeters = 1234) {

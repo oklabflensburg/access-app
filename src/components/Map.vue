@@ -7,6 +7,7 @@ import type { RoutePoint, WalkingRoute } from "../types/routing";
 import type {
   MapFeature,
   MapFeatureType,
+  OsmFeature,
   PolygonGeometry,
 } from "../types/map-feature";
 import { useI18n } from "vue-i18n";
@@ -20,6 +21,7 @@ const props = defineProps<{
   observations: Observation[];
   ownedObservationIds: ReadonlySet<string>;
   features: MapFeature[];
+  osmFeatures?: OsmFeature[];
   routingActive?: boolean;
   routePicking?: "start" | "end" | null;
   routeStart?: RoutePoint | null;
@@ -30,6 +32,7 @@ const emit = defineEmits<{
   selectObservation: [id: string];
   selectLocation: [location: LocationData];
   selectFeature: [id: string];
+  selectOsmFeature: [feature: OsmFeature, point: { latitude: number; longitude: number }];
   createFeature: [feature: { geometry: PolygonGeometry; name: string; type: MapFeatureType; parentFeatureId: string | null }];
   routePoint: [point: RoutePoint];
   cancelRoute: [];
@@ -46,10 +49,13 @@ let initialBoundsFitted = false;
 let observationLayer: L.LayerGroup;
 let locationLayer: L.LayerGroup;
 let featureLayer: L.LayerGroup;
+let osmFeaturesLayer: L.LayerGroup;
 let drawingLayer: L.LayerGroup;
 let routingLayer: L.LayerGroup;
 let resizeObserver: ResizeObserver | undefined;
 const pickingPoint = ref(false);
+// OSM features only matter at street level; below this zoom none are drawn.
+const OSM_FEATURES_MIN_ZOOM = 14;
 
 const {
   drawing,
@@ -315,6 +321,60 @@ function drawFeatures() {
   fitInitialBounds();
 }
 
+function drawOsmFeatures() {
+  if (!map) return;
+  osmFeaturesLayer.clearLayers();
+  const features = props.osmFeatures ?? [];
+  if (!features.length || map.getZoom() < OSM_FEATURES_MIN_ZOOM) return;
+  // Adopted OSM objects exist as regular features; the OSM original stays
+  // hidden. Type and id together identify the object, since OSM node and way
+  // ids share the same number space.
+  const adopted = new Set(props.features.flatMap((feature) =>
+    feature.osmId ? [`${feature.type}/${feature.osmId}`] : []));
+  const bounds = map.getBounds().pad(0.5);
+  for (const osmFeature of features) {
+    if (adopted.has(`${osmFeature.type}/${osmFeature.osmId}`)) continue;
+    const label = osmFeature.name || t(`map.featureTypes.${osmFeature.type}`);
+    const activate = (event: L.LeafletMouseEvent) => {
+      if (props.routePicking) pickRoutePoint(event.latlng);
+      else if (pickingPoint.value) pickObservationPoint(event);
+      else if (drawing.value || choosingParent.value) addVertex(event);
+      else
+        emit("selectOsmFeature", osmFeature, {
+          latitude: event.latlng.lat,
+          longitude: event.latlng.lng,
+        });
+    };
+    if (osmFeature.way) {
+      const latlngs = osmFeature.way.map(([longitude, latitude]) => [latitude, longitude] as L.LatLngTuple);
+      if (!latlngs.some((latlng) => bounds.contains(latlng))) continue;
+      const line = L.polyline(latlngs, {
+        color: "#666666",
+        weight: 3,
+        dashArray: "2 5",
+        opacity: 0.9,
+        bubblingMouseEvents: false,
+        className: "osm-feature",
+      }).addTo(osmFeaturesLayer);
+      line.bindTooltip(label);
+      line.on("click", activate);
+    } else if (osmFeature.node) {
+      const latlng: L.LatLngTuple = [osmFeature.node[1], osmFeature.node[0]];
+      if (!bounds.contains(latlng)) continue;
+      const marker = L.circleMarker(latlng, {
+        color: "#666666",
+        weight: 2,
+        radius: 5,
+        fillOpacity: 0.5,
+        bubblingMouseEvents: false,
+        className: "osm-feature",
+      }).addTo(osmFeaturesLayer);
+      marker.bindTooltip(label);
+      marker.on("click", activate);
+    }
+  }
+}
+
 onMounted(() => {
   map = L.map(container.value!, {
     scrollWheelZoom: true,
@@ -332,21 +392,28 @@ onMounted(() => {
     })
     .addTo(map);
   locationLayer = L.layerGroup().addTo(map);
+  osmFeaturesLayer = L.layerGroup().addTo(map);
   featureLayer = L.layerGroup().addTo(map);
   observationLayer = L.layerGroup().addTo(map);
   drawingLayer = L.layerGroup().addTo(map);
   routingLayer = L.layerGroup().addTo(map);
   map.on("click", onMapClick);
+  map.on("moveend", drawOsmFeatures);
   drawLocation();
   drawObservations();
   drawFeatures();
+  drawOsmFeatures();
   drawRoute();
   resizeObserver = new ResizeObserver(() => map?.invalidateSize());
   resizeObserver.observe(container.value!);
 });
 watch(() => props.location, drawLocation);
 watch(() => props.observations, drawObservations, { deep: true });
-watch(() => props.features, drawFeatures, { deep: true });
+watch(() => props.features, () => {
+  drawFeatures();
+  drawOsmFeatures();
+}, { deep: true });
+watch(() => props.osmFeatures, drawOsmFeatures);
 watch(() => mapStore.drawRequest, () => {
   emit("cancelRoute");
   pickingPoint.value = false;
