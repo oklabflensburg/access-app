@@ -14,7 +14,7 @@ function distance(a: PolygonPosition, b: PolygonPosition): number {
     (b[1] - a[1]) * scale);
 }
 
-test("path buffer has 2 metre width and flat end caps in every direction", () => {
+test("path buffer has 10 metre width and flat end caps in every direction", () => {
   for (const latitude of [0, 54.78, 70]) {
     for (const end of [[100, 0], [0, 100], [80, 60], [-80, -60]] as [number, number][]) {
       const geometry = createPathGeometry(positions([[0, 0], end], latitude));
@@ -22,8 +22,8 @@ test("path buffer has 2 metre width and flat end caps in every direction", () =>
       const ring = geometry!.coordinates[0];
       expect(ring).toHaveLength(5);
       expect(ring[0]).toEqual(ring.at(-1));
-      expect(distance(ring[0], ring[3])).toBeCloseTo(2, 3);
-      expect(distance(ring[1], ring[2])).toBeCloseTo(2, 3);
+      expect(distance(ring[0], ring[3])).toBeCloseTo(10, 3);
+      expect(distance(ring[1], ring[2])).toBeCloseTo(10, 3);
       expect(distance(ring[0], ring[1])).toBeCloseTo(100, 2);
     }
   }
@@ -121,10 +121,12 @@ test("two points save a Weg with fixed width, survive reload, and synchronize", 
   expect(await readFeatures(page)).toHaveLength(0);
   expect(uploaded).toBeUndefined();
   await save.click();
-  await expect(page.getByRole("form", { name: "Flächendetails" }).getByLabel("Typ")).toHaveValue("path");
+  const typeSelect = page.getByRole("form", { name: "Flächendetails" }).getByLabel("Typ");
+  await expect(typeSelect).toHaveValue("path");
+  await expect(typeSelect.locator("option")).toHaveText(["Weg", "Treppe"]);
   const [feature] = await readFeatures(page);
   expect(feature.geometry.coordinates[0]).toHaveLength(5);
-  expect(distance(feature.geometry.coordinates[0][0], feature.geometry.coordinates[0][3])).toBeCloseTo(2, 3);
+  expect(distance(feature.geometry.coordinates[0][0], feature.geometry.coordinates[0][3])).toBeCloseTo(10, 3);
   expect(feature.parentFeatureId).toBeNull();
   await page.reload();
   await expect(page.locator(".leaflet-overlay-pane path")).toHaveCount(1);
@@ -269,7 +271,7 @@ test("mobile controls fit the viewport and zoom does not change path width", asy
   await clickPoint(page, 70, 300);
   await clickPoint(page, 280, 300);
   const controls = page.getByRole("group", { name: "Weg zeichnen" });
-  await expect(controls).toContainText("Die Breite beträgt automatisch 2 Meter.");
+  await expect(controls).toContainText("Die Breite beträgt automatisch 10 Meter.");
   const box = await controls.boundingBox();
   expect(box?.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(375);
@@ -278,5 +280,5 @@ test("mobile controls fit the viewport and zoom does not change path width", asy
   await controls.getByRole("button", { name: "Speichern", exact: true }).click();
   await expect(page.getByRole("form", { name: "Flächendetails" })).toBeVisible();
   const [feature] = await readFeatures(page);
-  expect(distance(feature.geometry.coordinates[0][0], feature.geometry.coordinates[0][3])).toBeCloseTo(2, 3);
+  expect(distance(feature.geometry.coordinates[0][0], feature.geometry.coordinates[0][3])).toBeCloseTo(10, 3);
 });

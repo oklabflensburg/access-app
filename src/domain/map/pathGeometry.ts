@@ -1,6 +1,6 @@
 import type { PolygonGeometry, PolygonPosition } from "../../types/map-feature";
 
-export const PATH_WIDTH_METRES = 2;
+export const PATH_WIDTH_METRES = 10;
 // Each side can have two points per interior join, plus its endpoints.
 export const MAX_PATH_POINTS = 126;
 const EARTH_RADIUS = 6371000;

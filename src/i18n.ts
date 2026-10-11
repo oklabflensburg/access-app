@@ -84,7 +84,7 @@ export const messages = {
       noComment: "Kein Kommentar.",
       drawControls: "Fläche zeichnen",
       drawPathControls: "Weg zeichnen",
-      drawPathInstruction: "Klicken Sie den Startpunkt, weitere Wegpunkte und den Endpunkt auf der Karte. Mit „Speichern“ beenden Sie den Weg. Die Breite beträgt automatisch 2 Meter.",
+      drawPathInstruction: "Klicken Sie den Startpunkt, weitere Wegpunkte und den Endpunkt auf der Karte. Mit „Speichern“ beenden Sie den Weg. Die Breite beträgt automatisch 10 Meter.",
       invalidPath: "Der Weg darf sich nicht kreuzen oder zurücklaufen. Nehmen Sie den letzten Punkt zurück und wählen Sie einen anderen Verlauf.",
       pathPointLimit: "Ein Weg kann höchstens {count} Punkte haben. Speichern Sie den Weg oder nehmen Sie einen Punkt zurück.",
       pickPointControls: "Punkt wählen",

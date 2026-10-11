@@ -20,6 +20,8 @@ export const mapFeatureTypes = [
 
 export type MapFeatureType = (typeof mapFeatureTypes)[number];
 
+export const pathFeatureTypes: readonly MapFeatureType[] = ["path", "staircase"];
+
 export interface MapFeature {
   id: string;
   type: MapFeatureType;
