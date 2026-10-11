@@ -83,6 +83,9 @@ test.beforeEach(async ({ page, context }) => {
   await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.abort(),
   );
+  await page.route("**/data/steps.geojson", (route) =>
+    route.fulfill({ json: { type: "FeatureCollection", features: [] } }),
+  );
 });
 
 test("edits a saved observation, preserves location, and deletes it offline", async ({

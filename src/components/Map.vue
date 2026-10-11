@@ -7,6 +7,7 @@ import type { RoutePoint, WalkingRoute } from "../types/routing";
 import type {
   MapFeature,
   MapFeatureType,
+  OsmStepWay,
   PolygonGeometry,
 } from "../types/map-feature";
 import { useI18n } from "vue-i18n";
@@ -20,6 +21,7 @@ const props = defineProps<{
   observations: Observation[];
   ownedObservationIds: ReadonlySet<string>;
   features: MapFeature[];
+  osmSteps?: OsmStepWay[];
   routingActive?: boolean;
   routePicking?: "start" | "end" | null;
   routeStart?: RoutePoint | null;
@@ -30,6 +32,7 @@ const emit = defineEmits<{
   selectObservation: [id: string];
   selectLocation: [location: LocationData];
   selectFeature: [id: string];
+  selectOsmStep: [way: OsmStepWay, point: { latitude: number; longitude: number }];
   createFeature: [feature: { geometry: PolygonGeometry; name: string; type: MapFeatureType; parentFeatureId: string | null }];
   routePoint: [point: RoutePoint];
   cancelRoute: [];
@@ -46,10 +49,13 @@ let initialBoundsFitted = false;
 let observationLayer: L.LayerGroup;
 let locationLayer: L.LayerGroup;
 let featureLayer: L.LayerGroup;
+let osmStepsLayer: L.LayerGroup;
 let drawingLayer: L.LayerGroup;
 let routingLayer: L.LayerGroup;
 let resizeObserver: ResizeObserver | undefined;
 const pickingPoint = ref(false);
+// Staircase ways only matter at street level; below this zoom none are drawn.
+const OSM_STEPS_MIN_ZOOM = 14;
 
 const {
   drawing,
@@ -315,6 +321,41 @@ function drawFeatures() {
   fitInitialBounds();
 }
 
+function drawOsmSteps() {
+  if (!map) return;
+  osmStepsLayer.clearLayers();
+  const steps = props.osmSteps ?? [];
+  if (!steps.length || map.getZoom() < OSM_STEPS_MIN_ZOOM) return;
+  // Adopted staircases exist as regular features; the OSM original stays hidden.
+  const adopted = new Set(props.features.flatMap((feature) =>
+    feature.osmWayId ? [feature.osmWayId] : []));
+  const bounds = map.getBounds().pad(0.5);
+  for (const way of steps) {
+    if (adopted.has(way.osmWayId)) continue;
+    const latlngs = way.coordinates.map(([longitude, latitude]) => [latitude, longitude] as L.LatLngTuple);
+    if (!latlngs.some((latlng) => bounds.contains(latlng))) continue;
+    const line = L.polyline(latlngs, {
+      color: "#666666",
+      weight: 3,
+      dashArray: "2 5",
+      opacity: 0.9,
+      bubblingMouseEvents: false,
+      className: "osm-step",
+    }).addTo(osmStepsLayer);
+    line.bindTooltip(way.name || t("map.featureTypes.staircase"));
+    line.on("click", (event) => {
+      if (props.routePicking) pickRoutePoint(event.latlng);
+      else if (pickingPoint.value) pickObservationPoint(event);
+      else if (drawing.value || choosingParent.value) addVertex(event);
+      else
+        emit("selectOsmStep", way, {
+          latitude: event.latlng.lat,
+          longitude: event.latlng.lng,
+        });
+    });
+  }
+}
+
 onMounted(() => {
   map = L.map(container.value!, {
     scrollWheelZoom: true,
@@ -332,21 +373,28 @@ onMounted(() => {
     })
     .addTo(map);
   locationLayer = L.layerGroup().addTo(map);
+  osmStepsLayer = L.layerGroup().addTo(map);
   featureLayer = L.layerGroup().addTo(map);
   observationLayer = L.layerGroup().addTo(map);
   drawingLayer = L.layerGroup().addTo(map);
   routingLayer = L.layerGroup().addTo(map);
   map.on("click", onMapClick);
+  map.on("moveend", drawOsmSteps);
   drawLocation();
   drawObservations();
   drawFeatures();
+  drawOsmSteps();
   drawRoute();
   resizeObserver = new ResizeObserver(() => map?.invalidateSize());
   resizeObserver.observe(container.value!);
 });
 watch(() => props.location, drawLocation);
 watch(() => props.observations, drawObservations, { deep: true });
-watch(() => props.features, drawFeatures, { deep: true });
+watch(() => props.features, () => {
+  drawFeatures();
+  drawOsmSteps();
+}, { deep: true });
+watch(() => props.osmSteps, drawOsmSteps);
 watch(() => mapStore.drawRequest, () => {
   emit("cancelRoute");
   pickingPoint.value = false;

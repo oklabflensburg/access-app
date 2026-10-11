@@ -60,11 +60,11 @@ final class MapFeatureRepository
     ): int {
         return $this->connection->executeStatement(<<<'SQL'
             INSERT INTO map_features (
-                id, type_id, parent_feature_id, name, geometry, status, edit_token_hash, created_at, updated_at
+                id, type_id, parent_feature_id, name, geometry, status, edit_token_hash, created_at, updated_at, osm_way_id
             )
             SELECT :id, type.id, :parent_feature_id, NULLIF(:name, ''),
                 ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326),
-                'active', :edit_token_hash, :created_at, :created_at
+                'active', :edit_token_hash, :created_at, :created_at, :osm_way_id
             FROM map_feature_types type
             WHERE type.code = :type
             ON CONFLICT (id) DO NOTHING
@@ -76,6 +76,7 @@ final class MapFeatureRepository
             'geometry' => $geometry,
             'edit_token_hash' => $tokenHash,
             'created_at' => $createdAt->format('Y-m-d H:i:s.uP'),
+            'osm_way_id' => $input->osmWayId,
         ]);
     }
 
@@ -83,7 +84,7 @@ final class MapFeatureRepository
     public function findForUpdate(string $id, string $geometry): array|false
     {
         return $this->connection->fetchAssociative(<<<'SQL'
-            SELECT feature.edit_token_hash, feature.status, feature.parent_feature_id,
+            SELECT feature.edit_token_hash, feature.status, feature.parent_feature_id, feature.osm_way_id,
                 (SELECT type.code FROM map_feature_types type WHERE type.id = feature.type_id) AS type,
                 COALESCE(feature.name, '') AS name,
                 ST_Equals(
@@ -139,7 +140,7 @@ final class MapFeatureRepository
     public function findActive(int $limit): array
     {
         return $this->connection->fetchAllAssociative(<<<'SQL'
-            SELECT feature.id, feature.parent_feature_id, type.code AS type, COALESCE(feature.name, '') AS name,
+            SELECT feature.id, feature.parent_feature_id, feature.osm_way_id, type.code AS type, COALESCE(feature.name, '') AS name,
                 ST_AsGeoJSON(feature.geometry, 7) AS geometry, feature.created_at
             FROM map_features feature
             JOIN map_feature_types type ON type.id = feature.type_id

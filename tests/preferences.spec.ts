@@ -16,6 +16,8 @@ function preference(priorities: Record<string, string>, revision: number) {
 
 test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
+  await page.route("**/data/steps.geojson", route =>
+    route.fulfill({ json: { type: "FeatureCollection", features: [] } }));
   await page.route("**/api/observations?*", route => route.fulfill({ json: { observations: [], nextCursor: null } }));
   await page.route("**/api/map-features?*", route => route.fulfill({ json: { features: [{
     id: "staircase-1",

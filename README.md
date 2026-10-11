@@ -15,6 +15,14 @@ npm run dev
 
 Open **http://localhost:5173**. Vite proxies `/api` to the Symfony API at **http://127.0.0.1:8080**. The backend container applies Doctrine migrations automatically and Compose creates dedicated database and photo volumes. Its default credentials are for local development only.
 
+To show OSM staircases on the map, extract them once from the routing data after downloading it (requires the routing image, re-run after data refreshes):
+
+```sh
+make extract-steps
+```
+
+This writes `backend/public/data/steps.geojson`, which the backend serves at `/data/steps.geojson` and the PWA caches on-device for offline use. The file is generated data and not committed; production images must be built after running the extraction.
+
 Stop the backend without removing saved data using `(cd backend && docker compose stop)`.
 
 ## Using the app
@@ -29,6 +37,7 @@ Stop the backend without removing saved data using `(cd backend && docker compos
 8. **Share & sync now** publishes all ready observations, polygons, and pending deletions. Automatic sharing is off by default; enabling it retries queued changes while the app is open.
 9. The map fetches up to 200 public observations and 200 public polygon features. Locally stored records take precedence.
 10. **Routing preferences** in the menu set a routing priority per map feature type (avoid, reduce, prefer, or neutral): routes then avoid or prefer drawn features of those types where a detour exists. The preference is stored locally first, synchronized like observations and polygons, and — until user accounts exist — applies globally to all devices.
+11. Staircases mapped in OpenStreetMap appear on the map as dotted lines from street-level zoom. Selecting one offers to edit it or add an observation; either creates a personal copy as a regular map feature (linked to its OSM way), which then syncs, shapes routes like any drawn staircase, and replaces the OSM original on the map.
 
 ## Offline PWA
 

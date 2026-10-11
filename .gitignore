@@ -7,4 +7,5 @@ test-results/
 .env
 !backend/.env
 backend/var/
+backend/public/data/
 notes.md

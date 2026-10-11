@@ -5,6 +5,9 @@ test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.abort(),
   );
+  await page.route("**/data/steps.geojson", (route) =>
+    route.fulfill({ json: { type: "FeatureCollection", features: [] } }),
+  );
 });
 
 test("draws a polygon and queues it for permanent storage", async ({ page }) => {

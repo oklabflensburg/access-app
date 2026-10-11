@@ -134,6 +134,14 @@ export const messages = {
         "Das Objekt wurde als Unterobjekt von „{name}“ lokal gespeichert und wird später synchronisiert.",
       featureSaveError: "Fläche konnte nicht gespeichert werden.",
       invalidPolygon: "Die Linien dürfen sich nicht kreuzen und die Eckpunkte müssen verschieden sein.",
+      osmStepsError: "Treppen aus OpenStreetMap konnten nicht geladen werden.",
+      osmStepDetails: "Treppe aus OpenStreetMap",
+      closeOsmStepDetails: "Treppendetails schließen",
+      osmStepHint:
+        "Bearbeiten oder eine Beobachtung legt eine eigene Kopie als Kartenobjekt an.",
+      osmStepAdopt: "Als eigenes Objekt bearbeiten",
+      osmStepObserve: "Beobachtung hinzufügen",
+      osmStepTooComplex: "Diese Treppe konnte nicht als Objekt übernommen werden.",
     },
     location: {
       coordinates: "Koordinaten",

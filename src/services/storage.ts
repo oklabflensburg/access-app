@@ -1,7 +1,12 @@
 import Dexie, { type Table } from "dexie";
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
-import { mapFeatureTypes, type MapFeature, type MapFeatureType } from "../types/map-feature";
+import {
+  mapFeatureTypes,
+  type MapFeature,
+  type MapFeatureType,
+  type OsmStepWay,
+} from "../types/map-feature";
 import {
   defaultFeaturePriorities,
   routingPreferencesId,
@@ -17,6 +22,7 @@ class ObservationDatabase extends Dexie {
   sensors!: Table<SensorData, string>;
   mapFeatures!: Table<MapFeature, string>;
   preferences!: Table<RoutingPreferences, string>;
+  osmSteps!: Table<OsmStepsCache, string>;
   constructor() {
     super("accessapp");
     this.version(1).stores({
@@ -43,7 +49,30 @@ class ObservationDatabase extends Dexie {
           delete prefs.wheelchairAccessible;
         });
       });
+    this.version(4).stores({
+      osmSteps: "id",
+    });
   }
+}
+
+export interface OsmStepsCache {
+  id: "osm-steps";
+  fetchedAt: string;
+  ways: OsmStepWay[];
+}
+
+export const osmStepsCacheId: OsmStepsCache["id"] = "osm-steps";
+
+export async function getOsmStepsCache(): Promise<OsmStepsCache | null> {
+  return (await database.osmSteps.get(osmStepsCacheId)) ?? null;
+}
+
+export async function saveOsmStepsCache(ways: OsmStepWay[]): Promise<void> {
+  await database.osmSteps.put({
+    id: osmStepsCacheId,
+    fetchedAt: new Date().toISOString(),
+    ways,
+  });
 }
 
 export const database = new ObservationDatabase();
@@ -53,6 +82,7 @@ export async function saveMapFeature(
   name: string,
   type: MapFeatureType,
   parentFeatureId: string | null = null,
+  osmWayId: number | null = null,
 ): Promise<MapFeature> {
   const ring = geometry.coordinates[0];
   if (
@@ -77,6 +107,7 @@ export async function saveMapFeature(
     geometry,
     createdAt: new Date().toISOString(),
     parentFeatureId,
+    osmWayId,
     syncStatus: "ready",
     editToken: crypto.randomUUID(),
     attempts: 0,

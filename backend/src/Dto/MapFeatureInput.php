@@ -32,6 +32,8 @@ final readonly class MapFeatureInput
         public string $createdAt,
         #[Assert\Uuid(versions: Assert\Uuid::V4_RANDOM)]
         public ?string $parentFeatureId = null,
+        #[Assert\Positive]
+        public ?int $osmWayId = null,
     ) {
     }
 

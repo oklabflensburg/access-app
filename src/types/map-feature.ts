@@ -29,6 +29,7 @@ export interface MapFeature {
   geometry: PolygonGeometry;
   createdAt: string;
   parentFeatureId?: string | null;
+  osmWayId?: number | null;
   syncStatus?: "ready" | "syncing" | "synced" | "failed";
   editToken?: string;
   lastError?: string;
@@ -36,4 +37,11 @@ export interface MapFeature {
   nextRetryAt?: number;
   deleted?: boolean;
   remoteSynced?: boolean;
+}
+
+/** A staircase way from the static OpenStreetMap extract. */
+export interface OsmStepWay {
+  osmWayId: number;
+  name: string;
+  coordinates: PolygonPosition[];
 }
