@@ -21,7 +21,7 @@ To show OSM accessibility features (staircases, ramps, elevators, toilets) on th
 make extract-features
 ```
 
-This writes `backend/public/data/osm-features.geojson`, which the backend serves at `/data/osm-features.geojson` and the PWA caches on-device for offline use. The file is generated data and not committed; the deployment workflow regenerates it on the server before building the production image.
+This writes `backend/public/data/osm-features.geojson`, which the backend serves at `/data/osm-features.geojson` and the PWA caches on-device for offline use. The file is generated data and not committed; the deployment workflow extracts it on the CI runner (the production server is too small to run osmium) and deploys it to `backend/public/data/` before building the image.
 
 Stop the backend without removing saved data using `(cd backend && docker compose stop)`.
 
