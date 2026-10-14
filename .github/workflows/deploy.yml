@@ -34,6 +34,18 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+      - name: Extract OSM features
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends osmium-tool
+          mkdir -p osm-features
+          curl --fail --location --retry 3 \
+            https://download.geofabrik.de/europe/germany/schleswig-holstein-latest.osm.pbf \
+            --output osm-features/schleswig-holstein.osm.pbf
+          OSM_PBF="$PWD/osm-features/schleswig-holstein.osm.pbf" \
+            sh backend/routing/extract-features.sh > osm-features/osm-features.geojson
+          test -s osm-features/osm-features.geojson
+
       - name: Configure SSH
         run: |
           install -d -m 700 ~/.ssh
@@ -65,6 +77,14 @@ jobs:
             --exclude='public/data/' \
             -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             backend/ "$DEPLOY_USER@$DEPLOY_HOST:$BACKEND_DEPLOY_PATH/"
+          ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p '$BACKEND_DEPLOY_PATH/public/data'"
+          rsync -az \
+            -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            osm-features/osm-features.geojson \
+            "$DEPLOY_USER@$DEPLOY_HOST:$BACKEND_DEPLOY_PATH/public/data/osm-features.geojson"
           printf '%s\n' "$BACKEND_ENV" | \
             ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
               -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -81,14 +101,6 @@ jobs:
                docker compose --env-file .env.local \
                  -f compose.yaml -f compose.prod.yaml run --rm routing-data; \
              fi && \
-             mkdir -p public/data && \
-             docker compose --env-file .env.local \
-               -f compose.yaml -f compose.prod.yaml stop routing && \
-             docker compose --env-file .env.local \
-               -f compose.yaml -f compose.prod.yaml \
-               run --rm --no-deps --entrypoint /app/extract-features.sh routing \
-               > public/data/osm-features.geojson && \
-             test -s public/data/osm-features.geojson && \
              docker compose --env-file .env.local \
                -f compose.yaml -f compose.prod.yaml \
                up --build --detach --remove-orphans --wait"
