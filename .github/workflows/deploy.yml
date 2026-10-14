@@ -83,6 +83,8 @@ jobs:
              fi && \
              mkdir -p public/data && \
              docker compose --env-file .env.local \
+               -f compose.yaml -f compose.prod.yaml stop routing && \
+             docker compose --env-file .env.local \
                -f compose.yaml -f compose.prod.yaml \
                run --rm --no-deps --entrypoint /app/extract-features.sh routing \
                > public/data/osm-features.geojson && \
