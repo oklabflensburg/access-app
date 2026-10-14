@@ -66,6 +66,7 @@ jobs:
             "mkdir -p '$DEPLOY_PATH' '$BACKEND_DEPLOY_PATH'"
           rsync -az --delete --delay-updates \
             --exclude='/backend/' \
+            --exclude='/data/' \
             -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             dist/ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
           rsync -az --delete --delay-updates \
@@ -85,6 +86,14 @@ jobs:
             -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
             osm-features/osm-features.geojson \
             "$DEPLOY_USER@$DEPLOY_HOST:$BACKEND_DEPLOY_PATH/public/data/osm-features.geojson"
+          ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p '$DEPLOY_PATH/data'"
+          rsync -az \
+            -e "ssh -p $DEPLOY_PORT -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+            osm-features/osm-features.geojson \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/data/osm-features.geojson"
           printf '%s\n' "$BACKEND_ENV" | \
             ssh -p "$DEPLOY_PORT" -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes \
               -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
