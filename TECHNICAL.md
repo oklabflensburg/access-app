@@ -324,7 +324,7 @@ Both snapped waypoints are within 100 m of the requested points, so the response
 
 **Extraction** (`backend/routing/extract-features.sh`): a two-step osmium pipeline over the same PBF:
 
-1. `osmium tags-filter <pbf> w/highway=steps w/ramp=wheelchair n/highway=elevator n/amenity=toilets` — scans the PBF and keeps only the matching elements: *ways* (`w/`) tagged as steps or wheelchair ramps, *nodes* (`n/`) tagged as elevators or toilets. Each filter corresponds to one feature kind; adding a kind means adding a filter here plus a classification rule in the frontend.
+1. `osmium tags-filter <pbf> <filters>` — scans the PBF and keeps only the matching elements: *ways* (`w/`) tagged as steps or wheelchair ramps, *nodes* (`n/`) tagged as elevators or toilets. The filters come from the map feature config (`backend/config/map-features.json`, see 5.6): each `osm` rule's `extract` expression becomes one filter, and each filter corresponds to one feature kind.
 2. `osmium export --add-unique-id=type_id --output-format=geojson` — converts the filtered subset to a GeoJSON FeatureCollection. Ways become `LineString` features (their centerline, i.e. the sequence of node positions), nodes become `Point` features; each feature carries its OSM tags as properties and a unique id prefixed with the element type (`w…`/`n…`).
 
 **Example.** Running the extraction over the Schleswig-Holstein PBF produces a FeatureCollection like this (the two elements from section 5.1 have survived as features — the way as its centerline, the node as a point, each with its tags as properties and a type-prefixed id):
@@ -357,7 +357,7 @@ Both snapped waypoints are within 100 m of the requested points, so the response
 **Frontend processing** (`src/services/osmFeatures.ts`, `src/domain/map/osmFeatures.ts`, `src/composables/useOsmFeatures.ts`):
 
 1. **Fetch**: `GET /data/osm-features.geojson` (overridable via `VITE_OSM_FEATURES_URL`).
-2. **Parse + classify**: `parseOsmFeaturesGeoJson` walks the FeatureCollection, extracts the OSM id (accepts `w123`/`n123`-style ids), and classifies each feature by tag through an ordered rule table — `highway=steps` → `steps`, `ramp=wheelchair` → `ramp`, `highway=elevator` → `elevator`, `amenity=toilets` → `toilets`. First match wins, so a ramped staircase stays `steps`. LineStrings keep their centerline (`way`), Points keep `node`; everything else (areas, unclassified referenced nodes) is dropped. Duplicates are removed by type+id.
+2. **Parse + classify**: `parseOsmFeaturesGeoJson` walks the FeatureCollection, extracts the OSM id (accepts `w123`/`n123`-style ids), and classifies each feature by tag through the configured rules — `highway=steps` → `steps`, `ramp=wheelchair` → `ramp`, `highway=elevator` → `elevator`, `amenity=toilets` → `toilets`. First match wins, so a ramped staircase stays `steps`. LineStrings keep their centerline (`way`), Points keep `node`; everything else (areas, unclassified referenced nodes) is dropped. Duplicates are removed by type+id.
 3. **Cache**: the parsed array is stored in the Dexie `osmFeatures` store (key `"osm-features"`, with `fetchedAt`). On load, the cache is used immediately; a refresh happens only when online and the cache is older than 24 hours. Offline, the cached layer keeps working.
 4. **Render** (`src/components/Map.vue`): features are drawn on a dedicated Leaflet layer only from zoom level 14 (street level) — ways as dotted polylines, nodes as dotted circles, labeled with the OSM name tag or the localized type name.
 
@@ -393,7 +393,9 @@ OSM elements and the app's `MapFeature` model are structurally different: OSM ha
 | `name` tag | `name` field | parse |
 | — (no OSM equivalent) | `area`, `building`, `entrance`, `path` types; `parentFeatureId`; `editToken`; `syncStatus` | user-drawn features only |
 
-**Type vocabulary.** The app deliberately speaks OSM's language: the backend's `map_feature_types` lookup table originally used its own codes (`staircase`, `toilet`), and migration `Version20261013000000` renamed them to the OSM tag terms (`steps`, `toilets`) so that one vocabulary spans OSM tags, the TypeScript `MapFeatureType` union, the database lookup, and the routing-preference keys. The Dexie v5 upgrade performs the same rename on-device for existing records. The same eight codes are enumerated in three places that must stay in sync: `mapFeatureTypes` (`src/types/map-feature.ts`), `FeaturePriorities::TYPES` (backend), and the seeded `map_feature_types` rows. The API validates against the lookup table — an unknown type code fails the insert join and returns 400 ("Unknown map feature type").
+**Type vocabulary.** The app deliberately speaks OSM's language: the type codes originally used their own terms (`staircase`, `toilet`), and migration `Version20261013000000` renamed them to the OSM tag terms (`steps`, `toilets`) so that one vocabulary spans OSM tags, the TypeScript `MapFeatureType` union, the `map_features.type` column, and the routing-preference keys. The Dexie v5 upgrade performs the same rename on-device for existing records.
+
+**The map feature config** (`backend/config/map-features.json`) is the single source of truth for which feature types exist and how they map to OSM tags. Each entry has an `id` (the type code used everywhere), a `path` flag (line-drawn types: `path`, `steps`), a `routeSetting` flag (types offered in the route-settings UI), and an `osm` list of rules — each rule pairs an osmium `extract` filter (used by `backend/routing/extract-features.sh`) with the `tags` that classify a matching feature (used by `src/domain/map/osmFeatures.ts`). Types are checked in config order and the first matching rule wins. The file is consumed by all three parts of the system: the frontend imports it at build time, the extraction script reads it with `jq`, and the backend loads it through the `MapFeatureTypes` service to validate input (`MapFeatureService`, the feature-priorities validator). Adding a type therefore means adding one config entry plus a German label under `map.featureTypes` in `src/i18n.ts`.
 
 **Type coverage.** Only four of the eight app types can come from OSM (`steps`, `ramp`, `toilets`, `elevator` — exactly the four extraction filters); `area`, `building`, `entrance`, and `path` exist only for user-drawn features. The routing-preference model nevertheless covers all eight types (a preference can be set for any type), while the route-settings UI currently exposes only `steps` (`routeSettingFeatureTypes` in `src/types/preferences.ts`).
 
@@ -432,11 +434,11 @@ OSM elements and the app's `MapFeature` model are structurally different: OSM ha
     }
     ```
 
-3. **In PostGIS**, it is a regular row — the type code comes from the `map_feature_types` lookup, and the only OSM trace is `osm_id`:
+3. **In PostGIS**, it is a regular row — the type code is stored directly in `map_features.type`, and the only OSM trace is `osm_id`:
 
     ```sql
-    SELECT f.id, t.code AS type, f.name, f.osm_id, ST_GeometryType(f.geometry) AS geometry
-    FROM map_features f JOIN map_feature_types t ON t.id = f.type_id
+    SELECT f.id, f.type, f.name, f.osm_id, ST_GeometryType(f.geometry) AS geometry
+    FROM map_features f
     WHERE f.osm_id = 48123457;
 
     -- 6f0c9e34-a1b2-4c3d-8e5f-6a7b8c9d0e1f | steps | Treppenanlage Südertor | 48123457 | ST_Polygon
@@ -480,7 +482,7 @@ Dexie upgrade transactions migrate older schema versions in place (e.g. v5 renam
 - `observations` — UUID PK, `revision`, `edit_token_hash CHAR(64)`, `payload_hash`, `deleted` tombstone flag, `captured_at TIMESTAMPTZ`, **`location geography(Point, 4326)`** with a GIST index, GPS quality columns, questionnaire columns with CHECK constraints, `comment` (≤ 2000 chars), `map_feature_id` FK. Row-level invariants enforced by CHECK constraints (e.g. non-deleted rows require location and payload hash).
 - `media` — UUID PK, FK to observations (CASCADE), `storage_key`, `mime_type` (JPEG only), `sha256`, dimensions, `sort_order` 0–5, upload-state consistency CHECK.
 - `sensor_measurements` — UUID PK, FK to observations, `sensor_type` (`noise`/`motion`/`light`), `duration_ms`, **`summary JSONB`** and **`samples JSONB`** (the only JSONB in the observation model), UNIQUE per observation+type.
-- `map_features` — UUID PK, `type_id` FK to `map_feature_types` lookup, self-referencing `parent_feature_id`/`merged_into_id`, **`geometry geometry(Geometry, 4326)`** with GIST index, `status` (`active`/`merged`/`removed`), `osm_id BIGINT` for OSM-linked copies, `edit_token_hash`.
+- `map_features` — UUID PK, `type` code (validated against `config/map-features.json`), self-referencing `parent_feature_id`/`merged_into_id`, **`geometry geometry(Geometry, 4326)`** with GIST index, `status` (`active`/`merged`/`removed`), `osm_id BIGINT` for OSM-linked copies, `edit_token_hash`.
 - `routing_preferences` — global (no accounts yet) preference record with `feature_priorities JSONB` and revision handling.
 
 Doctrine migrations apply automatically when the PHP container starts; PostGIS is created by the first migration.

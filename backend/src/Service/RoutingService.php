@@ -22,6 +22,7 @@ final class RoutingService
 
     public function __construct(
         private readonly HttpClientInterface $httpClient,
+        private readonly MapFeatureTypes $featureTypes,
         #[Autowire(env: 'GRAPHHOPPER_BASE_URL')]
         private readonly string $baseUrl,
     ) {
@@ -134,7 +135,7 @@ final class RoutingService
     {
         $valid = [];
         foreach ($settings as $type => $priority) {
-            if (!is_string($type) || !in_array($type, FeaturePriorities::TYPES, true)
+            if (!is_string($type) || !$this->featureTypes->isValid($type)
                 || !is_string($priority) || !in_array($priority, FeaturePriorities::PRIORITIES, true)) {
                 throw new RoutingFailure('invalid_input', 400);
             }

@@ -48,6 +48,7 @@ services:
       GRAPHHOPPER_REBUILD_GRAPH: ${GRAPHHOPPER_REBUILD_GRAPH:-false}
     volumes:
       - ./routing/graphhopper.yml:/app/graphhopper.yml:ro
+      - ./config/map-features.json:/app/map-features.json:ro
       - ./routing/data:/data/osm:ro
       - graphhopper_graphs:/data
     healthcheck:

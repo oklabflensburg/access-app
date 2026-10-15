@@ -27,7 +27,7 @@ final class RoutingPreferenceControllerTest extends WebTestCase
         self::assertResponseHeaderSame('cache-control', 'no-store, private');
         $data = $this->responseData($client);
         self::assertSame('routing', $data['id']);
-        self::assertSame(FeaturePriorities::defaults(), $data['featurePriorities']);
+        self::assertSame(self::getContainer()->get(FeaturePriorities::class)->defaults(), $data['featurePriorities']);
         self::assertSame(0, $data['revision']);
 
         $client->jsonRequest('PUT', '/api/preferences/routing', [
@@ -111,7 +111,7 @@ final class RoutingPreferenceControllerTest extends WebTestCase
 
         $client->request('GET', '/api/preferences/routing');
         $data = $this->responseData($client);
-        self::assertSame(FeaturePriorities::defaults(), $data['featurePriorities']);
+        self::assertSame(self::getContainer()->get(FeaturePriorities::class)->defaults(), $data['featurePriorities']);
         self::assertSame(0, $data['revision']);
     }
 

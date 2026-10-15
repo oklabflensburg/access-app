@@ -1,7 +1,7 @@
 FROM eclipse-temurin:17-jre-jammy
 
 # Pin both the official release and its published SHA-256 digest.
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates osmium-tool \
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates jq osmium-tool \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir -p /app /data/graph-cache \
     && curl -fSL --retry 3 https://github.com/graphhopper/graphhopper/releases/download/11.1/graphhopper-web-11.1.jar -o /app/graphhopper.jar \

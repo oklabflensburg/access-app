@@ -38,12 +38,11 @@ final class MapFeatureRepository
     public function acceptsChild(string $geometry, string $parentId, string $childType): bool
     {
         return (bool) $this->connection->fetchOne(<<<'SQL'
-            SELECT CASE WHEN parent_type.code = 'path' AND :child_type = 'path'
+            SELECT CASE WHEN parent.type = 'path' AND :child_type = 'path'
                 THEN ST_Intersects(parent.geometry, child.geometry)
                 ELSE ST_Covers(parent.geometry, child.geometry)
             END
             FROM map_features parent
-            JOIN map_feature_types parent_type ON parent_type.id = parent.type_id
             CROSS JOIN (
                 SELECT ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326) AS geometry
             ) child
@@ -60,13 +59,11 @@ final class MapFeatureRepository
     ): int {
         return $this->connection->executeStatement(<<<'SQL'
             INSERT INTO map_features (
-                id, type_id, parent_feature_id, name, geometry, status, edit_token_hash, created_at, updated_at, osm_id
+                id, type, parent_feature_id, name, geometry, status, edit_token_hash, created_at, updated_at, osm_id
             )
-            SELECT :id, type.id, :parent_feature_id, NULLIF(:name, ''),
+            VALUES (:id, :type, :parent_feature_id, NULLIF(:name, ''),
                 ST_SetSRID(ST_GeomFromGeoJSON(:geometry), 4326),
-                'active', :edit_token_hash, :created_at, :created_at, :osm_id
-            FROM map_feature_types type
-            WHERE type.code = :type
+                'active', :edit_token_hash, :created_at, :created_at, :osm_id)
             ON CONFLICT (id) DO NOTHING
             SQL, [
             'id' => $input->id,
@@ -85,7 +82,7 @@ final class MapFeatureRepository
     {
         return $this->connection->fetchAssociative(<<<'SQL'
             SELECT feature.edit_token_hash, feature.status, feature.parent_feature_id, feature.osm_id,
-                (SELECT type.code FROM map_feature_types type WHERE type.id = feature.type_id) AS type,
+                feature.type,
                 COALESCE(feature.name, '') AS name,
                 ST_Equals(
                     feature.geometry,
@@ -126,13 +123,12 @@ final class MapFeatureRepository
             SQL, ['id' => $id]);
     }
 
-    public function updateProperties(string $id, string $type, string $name): int
+    public function updateProperties(string $id, string $type, string $name): void
     {
-        return $this->connection->executeStatement(<<<'SQL'
-            UPDATE map_features feature
-            SET type_id = type.id, name = NULLIF(:name, ''), updated_at = NOW()
-            FROM map_feature_types type
-            WHERE feature.id = :id AND type.code = :type
+        $this->connection->executeStatement(<<<'SQL'
+            UPDATE map_features
+            SET type = :type, name = NULLIF(:name, ''), updated_at = NOW()
+            WHERE id = :id
             SQL, ['id' => $id, 'type' => $type, 'name' => $name]);
     }
 
@@ -140,10 +136,9 @@ final class MapFeatureRepository
     public function findActive(int $limit): array
     {
         return $this->connection->fetchAllAssociative(<<<'SQL'
-            SELECT feature.id, feature.parent_feature_id, feature.osm_id, type.code AS type, COALESCE(feature.name, '') AS name,
+            SELECT feature.id, feature.parent_feature_id, feature.osm_id, feature.type, COALESCE(feature.name, '') AS name,
                 ST_AsGeoJSON(feature.geometry, 7) AS geometry, feature.created_at
             FROM map_features feature
-            JOIN map_feature_types type ON type.id = feature.type_id
             WHERE feature.status = 'active' AND GeometryType(feature.geometry) = 'POLYGON'
             ORDER BY feature.created_at DESC, feature.id DESC
             LIMIT :limit

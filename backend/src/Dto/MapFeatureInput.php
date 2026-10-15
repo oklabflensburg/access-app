@@ -13,16 +13,6 @@ final readonly class MapFeatureInput
     public function __construct(
         #[Assert\Uuid(versions: Assert\Uuid::V4_RANDOM)]
         public string $id,
-        #[Assert\Choice(choices: [
-            'area',
-            'building',
-            'entrance',
-            'steps',
-            'ramp',
-            'toilets',
-            'elevator',
-            'path',
-        ])]
         public string $type,
         #[Assert\Length(max: 120)]
         public string $name,

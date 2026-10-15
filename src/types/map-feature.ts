@@ -1,3 +1,5 @@
+import featureTypeConfig from "../../backend/config/map-features.json" with { type: "json" };
+
 export type PolygonPosition = [longitude: number, latitude: number];
 
 export type FeatureDrawingMode = "feature" | "child" | "path";
@@ -7,20 +9,29 @@ export interface PolygonGeometry {
   coordinates: [PolygonPosition[]];
 }
 
-export const mapFeatureTypes = [
-  "area",
-  "building",
-  "entrance",
-  "steps",
-  "ramp",
-  "toilets",
-  "elevator",
-  "path",
-] as const;
+/** One OSM tag mapping of a feature type: an extraction filter plus the tags that classify a match. */
+export interface OsmTagRule {
+  extract: string;
+  tags: Record<string, string>;
+}
 
-export type MapFeatureType = (typeof mapFeatureTypes)[number];
+export interface FeatureTypeConfig {
+  id: string;
+  path: boolean;
+  routeSetting: boolean;
+  osm: OsmTagRule[];
+}
 
-export const pathFeatureTypes: readonly MapFeatureType[] = ["path", "steps"];
+/** The configured feature types; earlier types win when OSM tags match several. */
+export const featureTypes: readonly FeatureTypeConfig[] =
+  featureTypeConfig.types as FeatureTypeConfig[];
+
+export const mapFeatureTypes: readonly MapFeatureType[] = featureTypes.map((type) => type.id);
+
+export type MapFeatureType = string;
+
+export const pathFeatureTypes: readonly MapFeatureType[] =
+  featureTypes.filter((type) => type.path).map((type) => type.id);
 
 export interface MapFeature {
   id: string;

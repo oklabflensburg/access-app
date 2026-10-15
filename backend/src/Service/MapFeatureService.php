@@ -16,6 +16,7 @@ use Symfony\Component\HttpKernel\Exception\GoneHttpException;
 final class MapFeatureService
 {
     public function __construct(
+        private readonly MapFeatureTypes $featureTypes,
         private readonly MapFeatureRepository $features,
         private readonly TransactionManager $transactions,
     ) {
@@ -24,6 +25,9 @@ final class MapFeatureService
     /** @return array{id: string} */
     public function save(MapFeatureInput $input, string $tokenHash): array
     {
+        if (!$this->featureTypes->isValid($input->type)) {
+            throw new BadRequestHttpException('Unknown map feature type.');
+        }
         try {
             $createdAt = new \DateTimeImmutable($input->createdAt);
         } catch (\DateMalformedStringException) {
@@ -46,7 +50,7 @@ final class MapFeatureService
 
             $current = $this->features->findForUpdate($input->id, $geometry);
             if (false === $current) {
-                throw new BadRequestHttpException('Unknown map feature type.');
+                throw new \RuntimeException('The existing map feature could not be loaded.');
             }
             if (!is_string($current['edit_token_hash'])
                 || !hash_equals($current['edit_token_hash'], $tokenHash)) {
@@ -66,10 +70,7 @@ final class MapFeatureService
                 throw new ConflictHttpException('A different OSM object already uses this id.');
             }
             if ($current['type'] !== $input->type || $current['name'] !== $input->name) {
-                $updated = $this->features->updateProperties($input->id, $input->type, $input->name);
-                if (1 !== $updated) {
-                    throw new BadRequestHttpException('Unknown map feature type.');
-                }
+                $this->features->updateProperties($input->id, $input->type, $input->name);
             }
         });
 

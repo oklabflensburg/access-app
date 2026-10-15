@@ -1,4 +1,4 @@
-import { mapFeatureTypes, type MapFeatureType, type PolygonGeometry } from "./map-feature";
+import { featureTypes, mapFeatureTypes, type MapFeatureType, type PolygonGeometry } from "./map-feature";
 
 export const routingPreferencesId = "routing";
 
@@ -9,7 +9,8 @@ export type FeaturePriority = (typeof featurePriorities)[number];
 export type FeaturePrioritySettings = Record<MapFeatureType, FeaturePriority>;
 
 // Feature types currently offered in the route settings; more will follow.
-export const routeSettingFeatureTypes: readonly MapFeatureType[] = ["steps"];
+export const routeSettingFeatureTypes: readonly MapFeatureType[] =
+  featureTypes.filter((type) => type.routeSetting).map((type) => type.id);
 
 export function defaultFeaturePriorities(): FeaturePrioritySettings {
   return Object.fromEntries(

@@ -125,7 +125,7 @@ test("two points save a Weg with fixed width, survive reload, and synchronize", 
   await save.click();
   const typeSelect = page.getByRole("form", { name: "Flächendetails" }).getByLabel("Typ");
   await expect(typeSelect).toHaveValue("path");
-  await expect(typeSelect.locator("option")).toHaveText(["Weg", "Treppe"]);
+  await expect(typeSelect.locator("option")).toHaveText(["Treppe", "Weg"]);
   const [feature] = await readFeatures(page);
   expect(feature.geometry.coordinates[0]).toHaveLength(5);
   expect(distance(feature.geometry.coordinates[0][0], feature.geometry.coordinates[0][3])).toBeCloseTo(10, 3);

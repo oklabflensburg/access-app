@@ -1,24 +1,10 @@
 import type { MapFeatureType, OsmFeature, PolygonGeometry, PolygonPosition } from "../../types/map-feature";
+import { featureTypes } from "../../types/map-feature";
 import { createPathGeometry } from "./pathGeometry";
 
 const EARTH_RADIUS = 6371000;
 const RADIANS = Math.PI / 180;
 type Point = [x: number, y: number];
-
-/**
- * Classifies extract features by their OSM tags; the first matching rule wins,
- * so a ramped staircase (highway=steps + ramp=wheelchair) stays steps. Extend
- * this table together with the extraction filters to import more kinds.
- */
-const classificationRules: readonly {
-  type: MapFeatureType;
-  tags: Record<string, string>;
-}[] = [
-  { type: "steps", tags: { highway: "steps" } },
-  { type: "ramp", tags: { ramp: "wheelchair" } },
-  { type: "elevator", tags: { highway: "elevator" } },
-  { type: "toilets", tags: { amenity: "toilets" } },
-];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -40,10 +26,17 @@ function featureId(feature: Record<string, unknown>): number | null {
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+/**
+ * Classifies extract features by their OSM tags; the configured types are
+ * checked in order and the first matching rule wins, so a ramped staircase
+ * (highway=steps + ramp=wheelchair) stays steps.
+ */
 function classify(properties: Record<string, unknown>): MapFeatureType | null {
-  for (const rule of classificationRules) {
-    if (Object.entries(rule.tags).every(([tag, value]) => properties[tag] === value))
-      return rule.type;
+  for (const type of featureTypes) {
+    for (const rule of type.osm) {
+      if (Object.entries(rule.tags).every(([tag, value]) => properties[tag] === value))
+        return type.id;
+    }
   }
   return null;
 }

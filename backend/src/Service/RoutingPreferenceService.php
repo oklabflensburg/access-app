@@ -14,6 +14,7 @@ final class RoutingPreferenceService
     private const ID = 'routing';
 
     public function __construct(
+        private readonly FeaturePriorities $featurePriorities,
         private readonly RoutingPreferenceRepository $preferences,
         private readonly TransactionManager $transactions,
     ) {
@@ -27,7 +28,7 @@ final class RoutingPreferenceService
             // No user accounts yet: the default global preference.
             return [
                 'id' => self::ID,
-                'featurePriorities' => FeaturePriorities::defaults(),
+                'featurePriorities' => $this->featurePriorities->defaults(),
                 'revision' => 0,
                 'updatedAt' => (new \DateTimeImmutable('@0'))->format(DATE_ATOM),
             ];
@@ -73,7 +74,7 @@ final class RoutingPreferenceService
 
         return [
             'id' => $row['id'],
-            'featurePriorities' => FeaturePriorities::normalize(is_array($settings) ? $settings : []),
+            'featurePriorities' => $this->featurePriorities->normalize(is_array($settings) ? $settings : []),
             'revision' => (int) $row['revision'],
             'updatedAt' => (new \DateTimeImmutable($row['updated_at']))->format(DATE_ATOM),
         ];
