@@ -37,12 +37,8 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
   const vertices = ref<L.LatLng[]>([]);
   const drawingError = ref("");
   const featureName = ref("");
-  const featureType = ref<MapFeatureType>("area");
-  const drawingMode = ref<FeatureDrawingMode>("feature");
-  const drawingPath = computed(() => drawingMode.value === "path");
-  const canFinishDrawing = computed(() => vertices.value.length >= (drawingPath.value ? 2 : 3));
-  const pathGeometry = computed(() => drawingPath.value
-    ? createPathGeometry(vertices.value.map((point) => [point.lng, point.lat])) : null);
+  const canSavePath = computed(() => vertices.value.length >= 2);
+  const canSaveArea = computed(() => vertices.value.length >= 3);
 
   function featureLabel(feature: MapFeature): string {
     return feature.name || t(`map.featureTypes.${feature.type}`);
@@ -51,15 +47,6 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
   function renderDrawing() {
     options.drawingLayer().clearLayers();
     if (!vertices.value.length) return;
-    if (pathGeometry.value) {
-      L.polygon(pathGeometry.value.coordinates[0].map(([lng, lat]) => [lat, lng]), {
-        color: "#a34612",
-        weight: 1,
-        fillColor: "#a34612",
-        fillOpacity: 0.25,
-        interactive: false,
-      }).addTo(options.drawingLayer());
-    }
     L.polyline(vertices.value, {
       color: "#a34612",
       weight: 4,
@@ -81,12 +68,9 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
   function addVertex(event: L.LeafletEvent) {
     if (!drawing.value || !hasMapPoint(event)) return;
     const lastPoint = vertices.value.at(-1);
-    if (drawingPath.value && lastPoint?.lat === event.latlng.lat
+    if (lastPoint?.lat === event.latlng.lat
       && lastPoint.lng === event.latlng.lng) return;
-    if (vertices.value.length >= (drawingPath.value ? MAX_PATH_POINTS : 500)) {
-      if (drawingPath.value) drawingError.value = t("map.pathPointLimit", { count: MAX_PATH_POINTS });
-      return;
-    }
+    if (vertices.value.length >= 500) return;
     if (parentFeature.value
       && !containsPoint(parentFeature.value, event.latlng, options.map())) {
       drawingError.value = t("map.pointOutsideParent");
@@ -99,7 +83,6 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
   }
 
   function startDrawing(mode: FeatureDrawingMode = "feature") {
-    drawingMode.value = mode;
     choosingParent.value = mode === "child";
     drawing.value = mode !== "child";
     parentFeature.value = null;
@@ -107,32 +90,36 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
     vertices.value = [];
     drawingError.value = "";
     featureName.value = "";
-    featureType.value = mode === "path" ? "path" : "area";
     renderDrawing();
   }
 
   function updateDrawingHints() {
-    if (parentFeature.value || !canFinishDrawing.value) {
+    if (parentFeature.value || !canSavePath.value) {
       prospectiveParent.value = null;
       return;
     }
-    const positions = drawingPositions();
-    if (!positions) {
+    // The object type is chosen when saving, so both interpretations of the
+    // drawn points decide the hint: a way buffered around the line and the
+    // polygon ring closed directly.
+    const interpretations: { parent: MapFeature | null; conflict: MapFeature | null }[] = [];
+    const pathGeometry = createPathGeometry(vertices.value.map((point) => [point.lng, point.lat]));
+    if (pathGeometry)
+      interpretations.push(detectParentFeature(
+        pathGeometry.coordinates[0].slice(0, -1), options.features(), "path"));
+    if (canSaveArea.value)
+      interpretations.push(detectParentFeature(
+        vertices.value.map((point) => [point.lng, point.lat]), options.features(), "area"));
+    const conflict = interpretations.find(({ conflict }) => conflict)?.conflict;
+    if (conflict) {
       prospectiveParent.value = null;
-      drawingError.value = t("map.invalidPath");
+      drawingError.value = t("map.overlapsExistingObject", { name: featureLabel(conflict) });
       return;
     }
-    const { parent, conflict } = detectParentFeature(
-      positions, options.features(), featureType.value);
-    prospectiveParent.value = parent;
-    if (!parent && conflict)
-      drawingError.value = t(drawingPath.value ? "map.overlapsExistingWay" : "map.overlapsExistingFeature", { name: featureLabel(conflict) });
-  }
-
-  function drawingPositions(): PolygonPosition[] | null {
-    return drawingPath.value
-      ? pathGeometry.value?.coordinates[0].slice(0, -1) ?? null
-      : vertices.value.map((point) => [point.lng, point.lat]);
+    const parents = interpretations
+      .map(({ parent }) => parent)
+      .filter((parent): parent is MapFeature => !!parent);
+    prospectiveParent.value =
+      parents.length && parents.every((parent) => parent === parents[0]) ? parents[0] : null;
   }
 
   function chooseParent(feature: MapFeature, event: L.LeafletMouseEvent) {
@@ -163,17 +150,29 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
     options.drawingLayer().clearLayers();
   }
 
-  function finishDrawing() {
-    if (!drawing.value || !canFinishDrawing.value) return;
-    const ring = drawingPositions();
-    if (!ring) {
-      drawingError.value = t("map.invalidPath");
-      return;
-    }
-    ring.push([...ring[0]]);
-    if (new Set(ring.slice(0, -1).map(([x, y]) => `${x},${y}`)).size < 3 || polygonIntersectsItself(ring)) {
-      drawingError.value = t("map.invalidPolygon");
-      return;
+  function finishDrawing(type: "path" | "area") {
+    if (!drawing.value) return;
+    if (type === "path" && !canSavePath.value) return;
+    if (type === "area" && !canSaveArea.value) return;
+    let ring: PolygonPosition[];
+    if (type === "path") {
+      if (vertices.value.length > MAX_PATH_POINTS) {
+        drawingError.value = t("map.pathPointLimit", { count: MAX_PATH_POINTS });
+        return;
+      }
+      const geometry = createPathGeometry(vertices.value.map((point) => [point.lng, point.lat]));
+      if (!geometry) {
+        drawingError.value = t("map.invalidPath");
+        return;
+      }
+      ring = geometry.coordinates[0];
+    } else {
+      ring = vertices.value.map((point) => [point.lng, point.lat]);
+      ring.push([...ring[0]]);
+      if (new Set(ring.slice(0, -1).map(([x, y]) => `${x},${y}`)).size < 3 || polygonIntersectsItself(ring)) {
+        drawingError.value = t("map.invalidPolygon");
+        return;
+      }
     }
     if (parentFeature.value && ring.slice(0, -1).some(([longitude, latitude]) =>
       !containsPoint(parentFeature.value!, L.latLng(latitude, longitude), options.map()))) {
@@ -184,9 +183,9 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
     if (!parentFeature.value) {
       // A drawing that overlaps an existing feature becomes its subobject.
       const { parent, conflict } = detectParentFeature(
-        ring.slice(0, -1), options.features(), featureType.value);
+        ring.slice(0, -1), options.features(), type);
       if (conflict) {
-        drawingError.value = t(drawingPath.value ? "map.overlapsExistingWay" : "map.overlapsExistingFeature", {
+        drawingError.value = t("map.overlapsExistingObject", {
           name: featureLabel(conflict),
         });
         return;
@@ -196,7 +195,7 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
     options.createFeature({
       geometry: { type: "Polygon", coordinates: [ring] },
       name: featureName.value.trim(),
-      type: featureType.value,
+      type,
       parentFeatureId,
     });
     cancelDrawing();
@@ -204,8 +203,8 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
 
   return {
     drawing,
-    drawingPath,
-    canFinishDrawing,
+    canSavePath,
+    canSaveArea,
     choosingParent,
     parentFeature,
     prospectiveParent,

@@ -30,7 +30,7 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   const map = page.locator(".map");
   const bounds = await map.boundingBox();
   if (!bounds) throw new Error("Map is not visible");
@@ -38,7 +38,7 @@ test("draws a polygon and queues it for permanent storage", async ({ page }) => 
   await page.mouse.click(bounds.x + 180, bounds.y + 160);
   await page.mouse.click(bounds.x + 300, bounds.y + 160);
   await page.mouse.click(bounds.x + 240, bounds.y + 260);
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Fläche", exact: true }).click();
 
   await expect(
     page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
@@ -161,7 +161,7 @@ test("saves a feature drawn inside an existing one as its subobject", async ({
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   const map = page.locator(".map");
   const bounds = await map.boundingBox();
   if (!bounds) throw new Error("Map is not visible");
@@ -169,7 +169,7 @@ test("saves a feature drawn inside an existing one as its subobject", async ({
   await page.mouse.click(bounds.x + 200, bounds.y + 150);
   await page.mouse.click(bounds.x + 420, bounds.y + 150);
   await page.mouse.click(bounds.x + 310, bounds.y + 300);
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Fläche", exact: true }).click();
   await expect(
     page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
   ).toBeVisible();
@@ -192,14 +192,14 @@ test("saves a feature drawn inside an existing one as its subobject", async ({
   const delta = Math.min(polygonBox.width, polygonBox.height) * 0.1;
 
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   await page.mouse.click(centerX - delta, centerY);
   await page.mouse.click(centerX + delta, centerY);
   await page.mouse.click(centerX, centerY + delta * 1.5);
   await expect(
     page.getByText('Wird als Unterobjekt von „Hauptgebäude“ gespeichert.'),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Fläche", exact: true }).click();
 
   await expect(
     page.getByText(
@@ -246,7 +246,7 @@ test("clicking a subobject first selects it and then its parent", async ({
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   const map = page.locator(".map");
   const bounds = await map.boundingBox();
   if (!bounds) throw new Error("Map is not visible");
@@ -254,7 +254,7 @@ test("clicking a subobject first selects it and then its parent", async ({
   await page.mouse.click(bounds.x + 200, bounds.y + 150);
   await page.mouse.click(bounds.x + 420, bounds.y + 150);
   await page.mouse.click(bounds.x + 310, bounds.y + 300);
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Fläche", exact: true }).click();
   await expect(
     page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
   ).toBeVisible();
@@ -277,11 +277,11 @@ test("clicking a subobject first selects it and then its parent", async ({
   const delta = Math.min(parentBox.width, parentBox.height) * 0.1;
 
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   await page.mouse.click(centerX - delta, centerY);
   await page.mouse.click(centerX + delta, centerY);
   await page.mouse.click(centerX, centerY + delta * 1.5);
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Fläche", exact: true }).click();
   await expect(
     page.getByText(
       'Das Objekt wurde als Unterobjekt von „Hauptgebäude“ lokal gespeichert und wird später synchronisiert.',
@@ -333,7 +333,7 @@ test("rejects a feature that only partially overlaps an existing one", async ({
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   const map = page.locator(".map");
   const bounds = await map.boundingBox();
   if (!bounds) throw new Error("Map is not visible");
@@ -341,7 +341,7 @@ test("rejects a feature that only partially overlaps an existing one", async ({
   await page.mouse.click(bounds.x + 200, bounds.y + 150);
   await page.mouse.click(bounds.x + 420, bounds.y + 150);
   await page.mouse.click(bounds.x + 310, bounds.y + 300);
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Fläche", exact: true }).click();
   await expect(
     page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
   ).toBeVisible();
@@ -364,7 +364,7 @@ test("rejects a feature that only partially overlaps an existing one", async ({
   const delta = Math.min(polygonBox.width, polygonBox.height) * 0.1;
 
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   await page.mouse.click(centerX - delta, centerY);
   await page.mouse.click(centerX + delta, centerY);
   // The third point lies left of the existing polygon, so the drawing only partially overlaps it.
@@ -373,12 +373,12 @@ test("rejects a feature that only partially overlaps an existing one", async ({
     polygonBox.y + polygonBox.height * 0.25,
   );
   await expect(
-    page.getByText('Die neue Fläche überlappt „Hauptgebäude“'),
+    page.getByText('Die Zeichnung überlappt „Hauptgebäude“'),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Fläche", exact: true }).click();
   await expect(
-    page.getByText('Die neue Fläche überlappt „Hauptgebäude“'),
+    page.getByText('Die Zeichnung überlappt „Hauptgebäude“'),
   ).toBeVisible();
   const local = await readMapFeatures(page);
   expect(local).toHaveLength(1);
@@ -386,7 +386,7 @@ test("rejects a feature that only partially overlaps an existing one", async ({
 
   await page.getByRole("button", { name: "Abbrechen" }).click();
   await expect(
-    page.getByRole("button", { name: "Speichern", exact: true }),
+    page.getByRole("button", { name: "Fläche", exact: true }),
   ).toHaveCount(0);
 });
 
@@ -438,7 +438,7 @@ test("assigns an observation created inside a feature as its child", async ({
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Menü" }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   const map = page.locator(".map");
   const bounds = await map.boundingBox();
   if (!bounds) throw new Error("Map is not visible");
@@ -446,7 +446,7 @@ test("assigns an observation created inside a feature as its child", async ({
   await page.mouse.click(bounds.x + 200, bounds.y + 150);
   await page.mouse.click(bounds.x + 420, bounds.y + 150);
   await page.mouse.click(bounds.x + 310, bounds.y + 300);
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Fläche", exact: true }).click();
   await expect(
     page.getByText("Fläche wurde lokal gespeichert und wird später synchronisiert."),
   ).toBeVisible();

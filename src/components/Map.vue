@@ -59,8 +59,8 @@ const OSM_FEATURES_MIN_ZOOM = 14;
 
 const {
   drawing,
-  drawingPath,
-  canFinishDrawing,
+  canSavePath,
+  canSaveArea,
   choosingParent,
   parentFeature,
   prospectiveParent,
@@ -455,13 +455,12 @@ onBeforeUnmount(() => {
         {{ t("map.cancelPicking") }}
       </button>
     </div>
-    <div v-if="drawing || choosingParent" class="drawing-controls" role="group" :aria-label="t(drawingPath ? 'map.drawPathControls' : 'map.drawControls')">
-
-      <p v-if="drawingPath" class="drawing-instruction">{{ t("map.drawPathInstruction") }}</p>
+    <div v-if="drawing || choosingParent" class="drawing-controls" role="group" :aria-label="t('map.drawControls')">
 
       <p v-if="choosingParent" class="drawing-instruction">{{ t("map.chooseParent") }}</p>
       <p v-else-if="parentFeature" class="drawing-instruction">{{ t("map.drawWithinParent") }}</p>
       <p v-else-if="prospectiveParent" class="drawing-instruction">{{ t("map.drawsAsChild", { name: featureLabel(prospectiveParent) }) }}</p>
+      <p v-else class="drawing-instruction">{{ t("map.drawObjectInstruction") }}</p>
 
       <p v-if="drawingError" class="drawing-error" role="alert">{{ drawingError }}</p>
 
@@ -471,8 +470,11 @@ onBeforeUnmount(() => {
       <button type="button" class="secondary" @click="cancelDrawing">
         {{ t("map.cancelDrawing") }}
       </button>
-      <button v-if="drawing" type="button" class="primary" :disabled="!canFinishDrawing" @click="finishDrawing">
-        {{ t("map.closeAndSave") }}
+      <button v-if="drawing" type="button" class="primary" :disabled="!canSavePath" @click="finishDrawing('path')">
+        {{ t("map.saveAsPath") }}
+      </button>
+      <button v-if="drawing" type="button" class="primary" :disabled="!canSaveArea" @click="finishDrawing('area')">
+        {{ t("map.saveAsArea") }}
       </button>
     </div>
     <p v-if="tileError" class="map-warning" role="status">

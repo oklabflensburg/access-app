@@ -40,8 +40,7 @@ export const messages = {
     navigation: {
       objects: "Objekte",
       observations: "Beobachtungen",
-      create: "Anlegen",
-      createPath: "Weg anlegen",
+      create: "Objekt anlegen",
       createObservation: "Beobachtung anlegen",
       myObjects: "Meine Objekte",
       myObservations: "Meine Beobachtungen",
@@ -82,11 +81,11 @@ export const messages = {
       unknown: "Unbekannt",
       entry: "Eintrag {number}: {label}",
       noComment: "Kein Kommentar.",
-      drawControls: "Fläche zeichnen",
-      drawPathControls: "Weg zeichnen",
-      drawPathInstruction: "Klicken Sie den Startpunkt, weitere Wegpunkte und den Endpunkt auf der Karte. Mit „Speichern“ beenden Sie den Weg. Die Breite beträgt automatisch 10 Meter.",
+      drawControls: "Objekt zeichnen",
+      drawObjectInstruction:
+        "Klicken Sie Punkte auf der Karte. Mit „Weg“ speichern Sie einen Weg mit automatisch 10 Metern Breite, mit „Fläche“ eine begrenzte Fläche.",
       invalidPath: "Der Weg darf sich nicht kreuzen oder zurücklaufen. Nehmen Sie den letzten Punkt zurück und wählen Sie einen anderen Verlauf.",
-      pathPointLimit: "Ein Weg kann höchstens {count} Punkte haben. Speichern Sie den Weg oder nehmen Sie einen Punkt zurück.",
+      pathPointLimit: "Ein Weg kann höchstens {count} Punkte haben. Nehmen Sie Punkte zurück oder speichern Sie eine Fläche.",
       pickPointControls: "Punkt wählen",
       pickObservationPoint: "Wählen Sie einen Punkt auf der Karte, um dort eine Beobachtung anzulegen.",
       cancelPicking: "Abbrechen",
@@ -95,14 +94,13 @@ export const messages = {
       drawWithinParent: "Klicken Sie Punkte nur innerhalb der ausgewählten Fläche.",
       pointOutsideParent: "Punkte müssen innerhalb der ausgewählten Fläche liegen.",
       drawsAsChild: "Wird als Unterobjekt von „{name}“ gespeichert.",
-      overlapsExistingFeature:
-        "Die neue Fläche überlappt „{name}“. Bitte zeichnen Sie sie vollständig innerhalb des bestehenden Objekts oder vollständig außerhalb davon.",
-      overlapsExistingWay:
-        "Der neue Weg überlappt „{name}“. Bitte zeichnen Sie ihn vollständig innerhalb des bestehenden Objekts oder vollständig außerhalb davon.",
+      overlapsExistingObject:
+        "Die Zeichnung überlappt „{name}“. Bitte zeichnen Sie sie vollständig innerhalb des bestehenden Objekts oder vollständig außerhalb davon.",
 
       undoPoint: "Punkt zurücknehmen",
       cancelDrawing: "Abbrechen",
-      closeAndSave: "Speichern",
+      saveAsPath: "Weg",
+      saveAsArea: "Fläche",
       area: "Erfasste Fläche",
       featureName: "Name",
       featureNamePlaceholder: "z. B. Haupteingang",

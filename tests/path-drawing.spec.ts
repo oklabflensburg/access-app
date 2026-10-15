@@ -76,8 +76,8 @@ test.beforeEach(async ({ page }) => {
 
 async function openDrawing(page: Page) {
   await page.getByRole("button", { name: "Menü", exact: true }).click();
-  await page.getByRole("button", { name: "Weg anlegen", exact: true }).click();
-  await expect(page.getByRole("group", { name: "Weg zeichnen" })).toBeVisible();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
+  await expect(page.getByRole("group", { name: "Objekt zeichnen" })).toBeVisible();
 }
 
 async function clickPoint(page: Page, x: number, y: number) {
@@ -114,7 +114,7 @@ test("two points save a Weg with fixed width, survive reload, and synchronize", 
   });
   await page.goto("/");
   await openDrawing(page);
-  const save = page.getByRole("button", { name: "Speichern", exact: true });
+  const save = page.getByRole("button", { name: "Weg", exact: true });
   await expect(save).toBeDisabled();
   await clickPoint(page, 180, 300);
   await expect(save).toBeDisabled();
@@ -141,7 +141,7 @@ test("two points save a Weg with fixed width, survive reload, and synchronize", 
 test("drawing continues through intermediate points; undo, duplicates, and cancel work", async ({ page }) => {
   await page.goto("/");
   await openDrawing(page);
-  const save = page.getByRole("button", { name: "Speichern", exact: true });
+  const save = page.getByRole("button", { name: "Weg", exact: true });
   await clickPoint(page, 180, 300);
   await clickPoint(page, 180, 300);
   await expect(save).toBeDisabled();
@@ -160,7 +160,7 @@ test("drawing continues through intermediate points; undo, duplicates, and cance
   await page.getByRole("button", { name: "Flächendetails schließen" }).click();
   await openDrawing(page);
   await page.getByRole("button", { name: "Abbrechen", exact: true }).click();
-  await expect(page.getByRole("group", { name: "Weg zeichnen" })).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "Objekt zeichnen" })).toHaveCount(0);
   expect(await readFeatures(page)).toHaveLength(1);
 });
 
@@ -170,14 +170,15 @@ test("invalid crossings keep the draft and can be corrected with undo", async ({
   for (const [x, y] of [[180, 300], [420, 450], [180, 450], [420, 300]]) {
     await clickPoint(page, x, y);
   }
-  const controls = page.getByRole("group", { name: "Weg zeichnen" });
+  const controls = page.getByRole("group", { name: "Objekt zeichnen" });
+  await expect(controls.getByRole("alert")).toHaveCount(0);
+  await controls.getByRole("button", { name: "Weg", exact: true }).click();
   await expect(controls.getByRole("alert")).toContainText("Der Weg darf sich nicht kreuzen");
-  await controls.getByRole("button", { name: "Speichern", exact: true }).click();
   expect(await readFeatures(page)).toHaveLength(0);
   await expect(controls).toBeVisible();
   await controls.getByRole("button", { name: "Punkt zurücknehmen" }).click();
   await expect(controls.getByRole("alert")).toHaveCount(0);
-  await controls.getByRole("button", { name: "Speichern", exact: true }).click();
+  await controls.getByRole("button", { name: "Weg", exact: true }).click();
   await expect(page.getByRole("form", { name: "Flächendetails" }).getByLabel("Typ")).toHaveValue("path");
   expect(await readFeatures(page)).toHaveLength(1);
 });
@@ -200,16 +201,16 @@ test("generated path polygons use existing parent and overlap rules", async ({ p
   await page.mouse.click(box.x + box.width * 0.35, y);
   await page.mouse.click(box.x + box.width * 0.65, y);
   await expect(page.getByText('Wird als Unterobjekt von „Testfläche“ gespeichert.')).toBeVisible();
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Weg", exact: true }).click();
   await expect(page.getByRole("form", { name: "Flächendetails" })).toBeVisible();
   expect((await readFeatures(page))[0].parentFeatureId).toBe("parent");
   await page.getByRole("button", { name: "Flächendetails schließen" }).click();
   await openDrawing(page);
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.8);
   await page.mouse.click(box.x - 20, box.y + box.height * 0.8);
-  const controls = page.getByRole("group", { name: "Weg zeichnen" });
+  const controls = page.getByRole("group", { name: "Objekt zeichnen" });
   await expect(controls.getByRole("alert")).toContainText("überlappt „Testfläche“");
-  await controls.getByRole("button", { name: "Speichern", exact: true }).click();
+  await controls.getByRole("button", { name: "Weg", exact: true }).click();
   expect(await readFeatures(page)).toHaveLength(1);
 });
 
@@ -229,7 +230,7 @@ test("a way crossing an existing way becomes its child", async ({ page }) => {
   await page.mouse.click(box.x + box.width * 0.5, box.y - 20);
   await page.mouse.click(box.x + box.width * 0.5, box.y + box.height + 20);
   await expect(page.getByText('Wird als Unterobjekt von „Testweg“ gespeichert.')).toBeVisible();
-  await page.getByRole("button", { name: "Speichern", exact: true }).click();
+  await page.getByRole("button", { name: "Weg", exact: true }).click();
   await expect(page.getByRole("form", { name: "Flächendetails" })).toBeVisible();
   const [feature] = await readFeatures(page);
   expect(feature.parentFeatureId).toBe("way");
@@ -241,9 +242,11 @@ test("point limit is explained and drawing can still be saved", async ({ page })
   for (let index = 0; index <= MAX_PATH_POINTS; index++) {
     await clickPoint(page, 180 + index * 2, 350);
   }
-  const controls = page.getByRole("group", { name: "Weg zeichnen" });
+  const controls = page.getByRole("group", { name: "Objekt zeichnen" });
+  await controls.getByRole("button", { name: "Weg", exact: true }).click();
   await expect(controls.getByRole("alert")).toContainText("höchstens 126 Punkte");
-  await controls.getByRole("button", { name: "Speichern", exact: true }).click();
+  await controls.getByRole("button", { name: "Punkt zurücknehmen" }).click();
+  await controls.getByRole("button", { name: "Weg", exact: true }).click();
   await expect(page.getByRole("form", { name: "Flächendetails" })).toBeVisible();
   const [feature] = await readFeatures(page);
   expect(feature.geometry.coordinates[0]).toHaveLength(MAX_PATH_POINTS * 2 + 1);
@@ -272,14 +275,14 @@ test("mobile controls fit the viewport and zoom does not change path width", asy
   await openDrawing(page);
   await clickPoint(page, 70, 300);
   await clickPoint(page, 280, 300);
-  const controls = page.getByRole("group", { name: "Weg zeichnen" });
-  await expect(controls).toContainText("Die Breite beträgt automatisch 10 Meter.");
+  const controls = page.getByRole("group", { name: "Objekt zeichnen" });
+  await expect(controls).toContainText("10 Metern Breite");
   const box = await controls.boundingBox();
   expect(box?.x).toBeGreaterThanOrEqual(0);
   expect(box!.x + box!.width).toBeLessThanOrEqual(375);
   expect(box!.y + box!.height).toBeLessThanOrEqual(812);
   await page.screenshot({ path: testInfo.outputPath("mobile-path-drawing.png") });
-  await controls.getByRole("button", { name: "Speichern", exact: true }).click();
+  await controls.getByRole("button", { name: "Weg", exact: true }).click();
   await expect(page.getByRole("form", { name: "Flächendetails" })).toBeVisible();
   const [feature] = await readFeatures(page);
   expect(distance(feature.geometry.coordinates[0][0], feature.geometry.coordinates[0][3])).toBeCloseTo(10, 3);

@@ -113,7 +113,7 @@ test("other map workflows cancel routing and remain usable", async ({ page }) =>
   await openRouting(page);
   await clickPoint(page, 0.2, 0.55);
   await page.getByRole("button", { name: "Menü", exact: true }).click();
-  await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+  await page.getByRole("button", { name: "Objekt anlegen", exact: true }).click();
   await expect(page.locator(".routing-panel")).toHaveCount(0);
   await expect(page.locator(".route-marker")).toHaveCount(0);
   await clickPoint(page, 0.2, 0.55);
