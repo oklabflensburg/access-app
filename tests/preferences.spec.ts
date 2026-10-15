@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
+import { featureTypeFixtures, mockMapFeatureTypes } from "./featureTypes";
 
-const featureTypes = ["area", "point", "building", "entrance", "steps", "ramp", "toilets", "elevator", "path"] as const;
+const featureTypes = featureTypeFixtures.map((type) => type.id);
 
 function preference(priorities: Record<string, string>, revision: number) {
   return {
@@ -16,6 +17,7 @@ function preference(priorities: Record<string, string>, revision: number) {
 
 test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
+  await mockMapFeatureTypes(page);
   await page.route("**/data/osm-features.geojson", route =>
     route.fulfill({ json: { type: "FeatureCollection", features: [] } }));
   await page.route("**/api/observations?*", route => route.fulfill({ json: { observations: [], nextCursor: null } }));

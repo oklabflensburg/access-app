@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import {
-  mapFeatureTypes,
-  pathFeatureTypes,
-  type MapFeature,
-  type MapFeatureType,
-} from "../types/map-feature";
+import { useFeatureTypesStore } from "../stores/featureTypes";
+import type { MapFeature, MapFeatureType } from "../types/map-feature";
 
 const props = defineProps<{
   feature: MapFeature;
@@ -19,11 +15,12 @@ const emit = defineEmits<{
   update: [changes: { name: string; type: MapFeatureType }];
 }>();
 const { t } = useI18n();
+const featureTypes = useFeatureTypesStore();
 const featureName = ref(props.feature.name);
 const featureType = ref<MapFeatureType>(props.feature.type);
 const canEdit = computed(() => Boolean(props.feature.editToken));
 const typeOptions = computed(() =>
-  pathFeatureTypes.includes(props.feature.type) ? pathFeatureTypes : mapFeatureTypes);
+  featureTypes.pathCodes.includes(props.feature.type) ? featureTypes.pathCodes : featureTypes.codes);
 watch(
   () => props.feature.id,
   () => {

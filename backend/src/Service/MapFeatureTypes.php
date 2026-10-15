@@ -4,46 +4,49 @@ declare(strict_types=1);
 
 namespace App\Service;
 
+use App\Repository\MapFeatureTypeRepository;
+
 /**
- * The configured map feature types, loaded from config/map-features.json. That
- * file is the single source of truth shared with the frontend and the OSM
- * extraction; it defines which feature types exist and how they map to OSM tags.
+ * The configured map feature types, loaded from the map_feature_types table.
+ * That table is the single source of truth for which feature types exist and
+ * how they map to OSM tags; the frontend requests it via /api/map-feature-types.
  */
 final class MapFeatureTypes
 {
-    /** @var list<string> */
-    private readonly array $codes;
+    /** @var list<array{id: string, path: bool, routeSetting: bool, osm: list<array{extract: string, tags: array<string, string>}>}> */
+    private readonly array $types;
 
-    public function __construct(string $configFile)
+    public function __construct(MapFeatureTypeRepository $types)
     {
-        $raw = file_get_contents($configFile);
-        if (false === $raw) {
-            throw new \RuntimeException("The map feature config is missing: {$configFile}");
+        $this->types = array_map(static function (array $row): array {
+            return [
+                'id' => $row['code'],
+                'path' => (bool) $row['path'],
+                'routeSetting' => (bool) $row['route_setting'],
+                'osm' => json_decode($row['osm'], true, flags: JSON_THROW_ON_ERROR),
+            ];
+        }, $types->findAll());
+        if ($this->types === []) {
+            throw new \RuntimeException('The map_feature_types table defines no feature types.');
         }
-        $config = json_decode($raw, true, flags: JSON_THROW_ON_ERROR);
-        if (!is_array($config) || !is_array($config['types'] ?? null)) {
-            throw new \RuntimeException('The map feature config must contain a types array.');
-        }
-        $codes = [];
-        foreach ($config['types'] as $type) {
-            if (is_array($type) && is_string($type['id'] ?? null) && '' !== $type['id']) {
-                $codes[] = $type['id'];
-            }
-        }
-        if ($codes === []) {
-            throw new \RuntimeException('The map feature config defines no feature types.');
-        }
-        $this->codes = array_values(array_unique($codes));
+    }
+
+    /**
+     * @return list<array{id: string, path: bool, routeSetting: bool, osm: list<array{extract: string, tags: array<string, string>}>}>
+     */
+    public function all(): array
+    {
+        return $this->types;
     }
 
     /** @return list<string> */
     public function codes(): array
     {
-        return $this->codes;
+        return array_column($this->types, 'id');
     }
 
     public function isValid(string $code): bool
     {
-        return in_array($code, $this->codes, true);
+        return in_array($code, $this->codes(), true);
     }
 }

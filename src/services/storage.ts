@@ -1,12 +1,7 @@
 import Dexie, { type Table } from "dexie";
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
-import {
-  mapFeatureTypes,
-  type MapFeature,
-  type MapFeatureType,
-  type OsmFeature,
-} from "../types/map-feature";
+import type { MapFeature, MapFeatureType, OsmFeature } from "../types/map-feature";
 import {
   defaultFeaturePriorities,
   routingPreferencesId,
@@ -14,6 +9,7 @@ import {
   type RemoteRoutingPreferences,
   type RoutingPreferences,
 } from "../types/preferences";
+import { useFeatureTypesStore } from "../stores/featureTypes";
 import { t } from "../i18n";
 
 class ObservationDatabase extends Dexie {
@@ -43,7 +39,7 @@ class ObservationDatabase extends Dexie {
         await tx.table("preferences").toCollection().modify((prefs) => {
           if (prefs.featurePriorities) return;
           prefs.featurePriorities = {
-            ...defaultFeaturePriorities(),
+            ...defaultFeaturePriorities([]),
             ...(prefs.wheelchairAccessible ? { staircase: "avoid" } : {}),
           };
           delete prefs.wheelchairAccessible;
@@ -161,7 +157,7 @@ export async function updateMapFeatureProperties(
   if (!feature?.editToken)
     throw new Error(t("errors.featureNotEditable"));
   const trimmedName = name.trim();
-  if (trimmedName.length > 120 || !mapFeatureTypes.includes(type))
+  if (trimmedName.length > 120 || !useFeatureTypesStore().codes.includes(type))
     throw new Error(t("errors.invalidFeatureProperties"));
   const updated: MapFeature = {
     ...feature,
@@ -283,11 +279,12 @@ export async function deleteObservation(id: string) {
 }
 
 export async function getRoutingPreferences(): Promise<RoutingPreferences> {
+  const codes = useFeatureTypesStore().codes;
   const stored = await database.preferences.get(routingPreferencesId);
   if (!stored) {
     return {
       id: routingPreferencesId,
-      featurePriorities: defaultFeaturePriorities(),
+      featurePriorities: defaultFeaturePriorities(codes),
       revision: 0,
       updatedAt: new Date(0).toISOString(),
       syncStatus: "synced",
@@ -296,10 +293,10 @@ export async function getRoutingPreferences(): Promise<RoutingPreferences> {
       lastError: "",
     };
   }
-  // Types added to the config after a record was saved default to neutral;
-  // priorities for removed type codes are dropped so requests stay valid.
-  const featurePriorities = defaultFeaturePriorities();
-  for (const type of mapFeatureTypes) {
+  // Types added after a record was saved default to neutral; priorities for
+  // removed type codes are dropped so requests stay valid.
+  const featurePriorities = defaultFeaturePriorities(codes);
+  for (const type of codes) {
     const priority = stored.featurePriorities[type];
     if (priority) featurePriorities[type] = priority;
   }

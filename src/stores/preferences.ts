@@ -6,17 +6,20 @@ import {
   saveRoutingPreferences,
 } from "../services/storage";
 import { fetchRoutingPreferences } from "../services/api";
+import { useFeatureTypesStore } from "./featureTypes";
 import { defaultFeaturePriorities, type FeaturePrioritySettings } from "../types/preferences";
 import { t } from "../i18n";
 
 export const usePreferencesStore = defineStore("preferences", () => {
-  const featurePriorities = ref<FeaturePrioritySettings>(defaultFeaturePriorities());
+  const featureTypes = useFeatureTypesStore();
+  const featurePriorities = ref<FeaturePrioritySettings>(defaultFeaturePriorities(featureTypes.codes));
   const saving = ref(false);
   const error = ref("");
 
   async function load() {
     error.value = "";
     try {
+      await featureTypes.load();
       featurePriorities.value = (await getRoutingPreferences()).featurePriorities;
     } catch {
       error.value = t("errors.preferences");

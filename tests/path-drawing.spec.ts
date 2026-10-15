@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createPathGeometry, MAX_PATH_POINTS } from "../src/domain/map/pathGeometry";
 import type { MapFeature, PolygonGeometry, PolygonPosition } from "../src/types/map-feature";
+import { mockMapFeatureTypes } from "./featureTypes";
 
 function positions(points: [number, number][], latitude = 54.78): PolygonPosition[] {
   const latitudeScale = 6371000 * Math.PI / 180;
@@ -68,6 +69,7 @@ test("path point limit produces a ring accepted by the existing storage limit", 
 
 test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
+  await mockMapFeatureTypes(page);
   await page.route("**/api/observations*", route => route.fulfill({ json: { observations: [], nextCursor: null } }));
   await page.route("**/api/map-features*", route => route.fulfill({ json: { features: [] } }));
   await page.route("**/data/osm-features.geojson", route =>

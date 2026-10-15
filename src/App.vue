@@ -5,6 +5,7 @@ import { useSyncStore } from "./stores/sync";
 import { useLocationStore } from "./stores/location";
 import { useMapStore } from "./stores/map";
 import { usePreferencesStore } from "./stores/preferences";
+import { useFeatureTypesStore } from "./stores/featureTypes";
 import { useI18n } from "vue-i18n";
 import SyncPanel from "./components/SyncPanel.vue";
 import PwaStatus from "./components/PwaStatus.vue";
@@ -13,6 +14,7 @@ const sync = useSyncStore();
 const location = useLocationStore();
 const map = useMapStore();
 const preferences = usePreferencesStore();
+const featureTypes = useFeatureTypesStore();
 const route = useRoute();
 const router = useRouter();
 const { t } = useI18n();
@@ -46,6 +48,7 @@ async function startRouting() {
 }
 let stop: (() => void) | undefined;
 onMounted(() => {
+  void featureTypes.load();
   stop = sync.start();
   void preferences.load();
   if (navigator.onLine) void preferences.refresh();

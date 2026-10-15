@@ -6,10 +6,10 @@ import Dialog from "primevue/dialog";
 import Message from "primevue/message";
 import Select from "primevue/select";
 import { usePreferencesStore } from "../stores/preferences";
+import { useFeatureTypesStore } from "../stores/featureTypes";
 import type { MapFeatureType } from "../types/map-feature";
 import {
   featurePriorities,
-  routeSettingFeatureTypes,
   type FeaturePriority,
   type FeaturePrioritySettings,
 } from "../types/preferences";
@@ -17,6 +17,7 @@ import {
 const { t } = useI18n();
 const router = useRouter();
 const preferences = usePreferencesStore();
+const featureTypes = useFeatureTypesStore();
 onMounted(() => void preferences.load());
 
 const options = featurePriorities.map((priority) => ({
@@ -54,7 +55,7 @@ function update(type: MapFeatureType, priority: FeaturePriority) {
     </Message>
     <p class="small">{{ t("preferences.priorityHint") }}</p>
     <div
-      v-for="type in routeSettingFeatureTypes"
+      v-for="type in featureTypes.routeSettingCodes"
       :key="type"
       class="preference-field"
     >

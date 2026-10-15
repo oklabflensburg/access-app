@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { mockMapFeatureTypes } from "./featureTypes";
 
 test("upgrades existing Milestone 1 data without losing observations", async ({
   page,
@@ -83,6 +84,7 @@ test.beforeEach(async ({ page, context }) => {
   await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.abort(),
   );
+  await mockMapFeatureTypes(page);
   await page.route("**/data/osm-features.geojson", (route) =>
     route.fulfill({ json: { type: "FeatureCollection", features: [] } }),
   );

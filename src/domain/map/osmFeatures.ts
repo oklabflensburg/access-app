@@ -1,5 +1,4 @@
-import type { MapFeatureType, OsmFeature, PolygonGeometry, PolygonPosition } from "../../types/map-feature";
-import { featureTypes } from "../../types/map-feature";
+import type { FeatureTypeConfig, MapFeatureType, OsmFeature, PolygonGeometry, PolygonPosition } from "../../types/map-feature";
 import { createPathGeometry } from "./pathGeometry";
 
 const EARTH_RADIUS = 6371000;
@@ -31,7 +30,7 @@ function featureId(feature: Record<string, unknown>): number | null {
  * checked in order and the first matching rule wins, so a ramped staircase
  * (highway=steps + ramp=wheelchair) stays steps.
  */
-function classify(properties: Record<string, unknown>): MapFeatureType | null {
+function classify(properties: Record<string, unknown>, featureTypes: readonly FeatureTypeConfig[]): MapFeatureType | null {
   for (const type of featureTypes) {
     for (const rule of type.osm) {
       if (Object.entries(rule.tags).every(([tag, value]) => properties[tag] === value))
@@ -46,7 +45,7 @@ function classify(properties: Record<string, unknown>): MapFeatureType | null {
  * (Points) and drops everything else, e.g. area polygons and unclassified
  * referenced nodes.
  */
-export function parseOsmFeaturesGeoJson(data: unknown): OsmFeature[] {
+export function parseOsmFeaturesGeoJson(data: unknown, featureTypes: readonly FeatureTypeConfig[]): OsmFeature[] {
   if (!isRecord(data) || data.type !== "FeatureCollection" || !Array.isArray(data.features))
     return [];
   const features: OsmFeature[] = [];
@@ -58,7 +57,7 @@ export function parseOsmFeaturesGeoJson(data: unknown): OsmFeature[] {
     const geometry = isRecord(entry.geometry) ? entry.geometry : null;
     if (!geometry || !Array.isArray(geometry.coordinates)) continue;
     const properties = isRecord(entry.properties) ? entry.properties : {};
-    const type = classify(properties);
+    const type = classify(properties, featureTypes);
     if (!type) continue;
     const name = typeof properties.name === "string" ? properties.name.trim() : "";
     if (geometry.type === "LineString") {

@@ -1,10 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { mockMapFeatureTypes } from "./featureTypes";
 
 test.beforeEach(async ({ page }) => {
   // External map tiles are not needed for testing local data collection.
   await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.abort(),
   );
+  await mockMapFeatureTypes(page);
   await page.route("**/data/osm-features.geojson", (route) =>
     route.fulfill({ json: { type: "FeatureCollection", features: [] } }),
   );

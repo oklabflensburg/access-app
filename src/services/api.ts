@@ -1,6 +1,6 @@
 import type { Observation, Photo } from "../types/observation";
 import type { SensorData } from "../types/sensors";
-import type { MapFeature } from "../types/map-feature";
+import type { FeatureTypeConfig, MapFeature } from "../types/map-feature";
 import type {
   FeaturePrioritySettings,
   PriorityArea,
@@ -133,6 +133,10 @@ export function removeRemoteMapFeature(feature: MapFeature) {
 
 export function getPublicMapFeatures() {
   return request<{ features: MapFeature[] }>("/map-features?limit=200");
+}
+
+export function getMapFeatureTypes() {
+  return request<{ types: FeatureTypeConfig[] }>("/map-feature-types");
 }
 
 export function fetchRoutingPreferences() {

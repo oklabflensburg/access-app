@@ -11,14 +11,12 @@ import {
   getLocalMapFeatures,
   updateMapFeatureProperties,
 } from "../services/storage";
-import {
-  mapFeatureTypes,
-  type MapFeature,
-  type MapFeatureType,
-} from "../types/map-feature";
+import { useFeatureTypesStore } from "../stores/featureTypes";
+import type { MapFeature, MapFeatureType } from "../types/map-feature";
 
 const { t, locale } = useI18n();
 const router = useRouter();
+const featureTypes = useFeatureTypesStore();
 const features = ref<MapFeature[]>([]);
 const editId = ref("");
 const confirmId = ref("");
@@ -122,7 +120,7 @@ function close() {
             />
             <label :for="`feature-type-${feature.id}`">{{ t("map.featureType") }}</label>
             <select :id="`feature-type-${feature.id}`" v-model="featureType">
-              <option v-for="type in mapFeatureTypes" :key="type" :value="type">
+              <option v-for="type in featureTypes.codes" :key="type" :value="type">
                 {{ t(`map.featureTypes.${type}`) }}
               </option>
             </select>

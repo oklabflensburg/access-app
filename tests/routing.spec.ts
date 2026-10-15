@@ -1,7 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mockMapFeatureTypes } from "./featureTypes";
 
 test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
+  await mockMapFeatureTypes(page);
   await page.route("**/api/observations?*", route => route.fulfill({ json: { observations: [], nextCursor: null } }));
   await page.route("**/api/map-features?*", route => route.fulfill({ json: { features: [] } }));
   await page.route("**/data/osm-features.geojson", route =>

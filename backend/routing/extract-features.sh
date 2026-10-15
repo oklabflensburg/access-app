@@ -10,8 +10,10 @@ set -eu
 # The extraction filters come from the map feature config (config/map-features.json,
 # mounted next to this script in the routing container); each osm rule's extract
 # expression becomes one osmium filter. w/ (way) filters produce LineString
-# geometries, n/ (node) filters produce Points. The frontend classifies each
-# feature by the same config's tags.
+# geometries, n/ (node) filters produce Points. The runtime source of truth for
+# feature types is the map_feature_types database table; this file only feeds
+# the OSM extraction, which runs without database access. The frontend
+# classifies each feature by the same rules served from that table.
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 pbf="${OSM_PBF:-/data/osm/schleswig-holstein.osm.pbf}"

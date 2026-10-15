@@ -5,6 +5,7 @@ import {
   wayFeatureGeometry,
 } from "../src/domain/map/osmFeatures";
 import type { MapFeature, PolygonPosition } from "../src/types/map-feature";
+import { featureTypeFixtures, mockMapFeatureTypes } from "./featureTypes";
 
 function positions(points: [number, number][], latitude = 54.78): PolygonPosition[] {
   const latitudeScale = 6371000 * Math.PI / 180;
@@ -53,7 +54,7 @@ test("extract keeps classified ways and nodes and drops the rest", () => {
       line(47110815, [[9.43, 54.78], [9.431, 54.781], [9.432, 54.782]]),
       line("w4016315", [[9.44, 54.79], [9.441, 54.791]]),
     ],
-  });
+  }, featureTypeFixtures);
   expect(features).toEqual([
     {
       osmId: 4016315,
@@ -67,8 +68,8 @@ test("extract keeps classified ways and nodes and drops the rest", () => {
     { osmId: 262401790, type: "toilets", name: "", node: [9.44, 54.79] },
     { osmId: 47110815, type: "steps", name: "", way: [[9.43, 54.78], [9.431, 54.781], [9.432, 54.782]] },
   ]);
-  expect(parseOsmFeaturesGeoJson(null)).toEqual([]);
-  expect(parseOsmFeaturesGeoJson({ type: "FeatureCollection" })).toEqual([]);
+  expect(parseOsmFeaturesGeoJson(null, featureTypeFixtures)).toEqual([]);
+  expect(parseOsmFeaturesGeoJson({ type: "FeatureCollection" }, featureTypeFixtures)).toEqual([]);
 });
 
 test("ways buffer into the 10 metre corridor, long ones simplify, tight turns fail", () => {
@@ -128,6 +129,7 @@ const nodeFixture = {
 
 test.beforeEach(async ({ page }) => {
   await page.route("https://tile.openstreetmap.org/**", route => route.abort());
+  await mockMapFeatureTypes(page);
   await page.route("**/api/observations*", route =>
     route.fulfill({ json: { observations: [], nextCursor: null } }));
   await page.route("**/api/map-features*", route => {
