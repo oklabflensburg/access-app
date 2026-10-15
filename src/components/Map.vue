@@ -18,6 +18,7 @@ import { containsPoint, featureDepth } from "../domain/map/geometry";
 
 const props = defineProps<{
   location: LocationData | null;
+  locationManual?: boolean;
   observations: Observation[];
   ownedObservationIds: ReadonlySet<string>;
   features: MapFeature[];
@@ -59,6 +60,7 @@ const OSM_FEATURES_MIN_ZOOM = 14;
 
 const {
   drawing,
+  canSavePoint,
   canSavePath,
   canSaveArea,
   choosingParent,
@@ -226,7 +228,9 @@ function drawLocation() {
     else L.popup().setLatLng(point).setContent(t("map.yourLocation")).openOn(map!);
   });
   marker.getElement()?.setAttribute("aria-label", t("map.yourLocation"));
-  if (!props.routingActive) map.setView(point, 17);
+  // A GPS fix centers the map on the user; a manually picked location must
+  // not change the view.
+  if (!props.routingActive && !props.locationManual) map.setView(point, 17);
 }
 
 function fitInitialBounds() {
@@ -469,6 +473,9 @@ onBeforeUnmount(() => {
       </button>
       <button type="button" class="secondary" @click="cancelDrawing">
         {{ t("map.cancelDrawing") }}
+      </button>
+      <button v-if="drawing" type="button" class="primary" :disabled="!canSavePoint" @click="finishDrawing('point')">
+        {{ t("map.saveAsPoint") }}
       </button>
       <button v-if="drawing" type="button" class="primary" :disabled="!canSavePath" @click="finishDrawing('path')">
         {{ t("map.saveAsPath") }}

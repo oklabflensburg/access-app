@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const featureTypes = ["area", "building", "entrance", "steps", "ramp", "toilets", "elevator", "path"] as const;
+const featureTypes = ["area", "point", "building", "entrance", "steps", "ramp", "toilets", "elevator", "path"] as const;
 
 function preference(priorities: Record<string, string>, revision: number) {
   return {

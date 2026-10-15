@@ -83,7 +83,7 @@ export const messages = {
       noComment: "Kein Kommentar.",
       drawControls: "Objekt zeichnen",
       drawObjectInstruction:
-        "Klicken Sie Punkte auf der Karte. Mit „Weg“ speichern Sie einen Weg mit automatisch 10 Metern Breite, mit „Fläche“ eine begrenzte Fläche.",
+        "Klicken Sie Punkte auf der Karte. Mit „Punkt“ speichern Sie einen einzelnen Punkt als kleinen Kreis, mit „Weg“ einen Weg mit automatisch 10 Metern Breite, mit „Fläche“ eine begrenzte Fläche.",
       invalidPath: "Der Weg darf sich nicht kreuzen oder zurücklaufen. Nehmen Sie den letzten Punkt zurück und wählen Sie einen anderen Verlauf.",
       pathPointLimit: "Ein Weg kann höchstens {count} Punkte haben. Nehmen Sie Punkte zurück oder speichern Sie eine Fläche.",
       pickPointControls: "Punkt wählen",
@@ -99,6 +99,7 @@ export const messages = {
 
       undoPoint: "Punkt zurücknehmen",
       cancelDrawing: "Abbrechen",
+      saveAsPoint: "Punkt",
       saveAsPath: "Weg",
       saveAsArea: "Fläche",
       area: "Erfasste Fläche",
@@ -116,6 +117,7 @@ export const messages = {
       featureUpdateError: "Die Flächendetails konnten nicht aktualisiert werden.",
       featureTypes: {
         area: "Allgemeine Fläche",
+        point: "Punkt",
         building: "Gebäude",
         entrance: "Eingang",
         steps: "Treppe",

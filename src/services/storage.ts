@@ -284,8 +284,8 @@ export async function deleteObservation(id: string) {
 
 export async function getRoutingPreferences(): Promise<RoutingPreferences> {
   const stored = await database.preferences.get(routingPreferencesId);
-  return (
-    stored ?? {
+  if (!stored) {
+    return {
       id: routingPreferencesId,
       featurePriorities: defaultFeaturePriorities(),
       revision: 0,
@@ -294,8 +294,16 @@ export async function getRoutingPreferences(): Promise<RoutingPreferences> {
       attempts: 0,
       nextRetryAt: 0,
       lastError: "",
-    }
-  );
+    };
+  }
+  // Types added to the config after a record was saved default to neutral;
+  // priorities for removed type codes are dropped so requests stay valid.
+  const featurePriorities = defaultFeaturePriorities();
+  for (const type of mapFeatureTypes) {
+    const priority = stored.featurePriorities[type];
+    if (priority) featurePriorities[type] = priority;
+  }
+  return { ...stored, featurePriorities };
 }
 
 export async function saveRoutingPreferences(

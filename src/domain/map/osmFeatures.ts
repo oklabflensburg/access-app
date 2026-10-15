@@ -141,7 +141,10 @@ const NODE_RADIUS_METRES = 5;
 const NODE_CIRCLE_SEGMENTS = 12;
 
 /** Buffer an OSM node into a small circle polygon around its position. */
-export function nodeFeatureGeometry(position: PolygonPosition): PolygonGeometry {
+export function nodeFeatureGeometry(
+  position: PolygonPosition,
+  radiusMetres: number = NODE_RADIUS_METRES,
+): PolygonGeometry {
   const [longitude, latitude] = position;
   const latitudeScale = EARTH_RADIUS * RADIANS;
   const longitudeScale = latitudeScale * Math.cos(latitude * RADIANS);
@@ -149,8 +152,8 @@ export function nodeFeatureGeometry(position: PolygonPosition): PolygonGeometry 
   for (let index = 0; index < NODE_CIRCLE_SEGMENTS; index++) {
     const angle = (2 * Math.PI * index) / NODE_CIRCLE_SEGMENTS;
     ring.push([
-      longitude + (Math.cos(angle) * NODE_RADIUS_METRES) / longitudeScale,
-      latitude + (Math.sin(angle) * NODE_RADIUS_METRES) / latitudeScale,
+      longitude + (Math.cos(angle) * radiusMetres) / longitudeScale,
+      latitude + (Math.sin(angle) * radiusMetres) / latitudeScale,
     ]);
   }
   ring.push(ring[0]);

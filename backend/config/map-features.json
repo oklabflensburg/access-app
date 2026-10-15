@@ -7,6 +7,12 @@
       "osm": []
     },
     {
+      "id": "point",
+      "path": false,
+      "routeSetting": false,
+      "osm": []
+    },
+    {
       "id": "building",
       "path": false,
       "routeSetting": false,

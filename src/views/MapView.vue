@@ -146,6 +146,7 @@ onMounted(() => void observations.load());
     <Map
       ref="mapComponent"
       :location="location.current"
+      :location-manual="location.manual"
       :observations="markers"
       :features="features"
       :osm-features="osmFeatures"

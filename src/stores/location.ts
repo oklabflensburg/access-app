@@ -6,6 +6,8 @@ import { t } from "../i18n";
 
 export const useLocationStore = defineStore("location", () => {
   const current = ref<LocationData | null>(null);
+  // A manual location (picked on the map or entered) must not move the map view.
+  const manual = ref(false);
   const loading = ref(false);
   const error = ref("");
   let pending: Promise<LocationData | null> | null = null;
@@ -21,6 +23,7 @@ export const useLocationStore = defineStore("location", () => {
     error.value = "";
     try {
       current.value = await getCurrentLocation();
+      manual.value = false;
       return { ...current.value };
     } catch (cause) {
       error.value =
@@ -34,7 +37,8 @@ export const useLocationStore = defineStore("location", () => {
   }
   function setManualLocation(location: LocationData) {
     current.value = { ...location };
+    manual.value = true;
     error.value = "";
   }
-  return { current, loading, error, locate, setManualLocation };
+  return { current, manual, loading, error, locate, setManualLocation };
 });

@@ -9,6 +9,10 @@ import type {
   FeatureDrawingMode,
 } from "../types/map-feature";
 import { createPathGeometry, MAX_PATH_POINTS } from "../domain/map/pathGeometry";
+import { nodeFeatureGeometry } from "../domain/map/osmFeatures";
+
+// Drawn points mark a single spot, so they stay smaller than adopted OSM nodes.
+const POINT_RADIUS_METRES = 2;
 import { hasMapPoint } from "../domain/map/events";
 import {
   containsPoint,
@@ -37,6 +41,7 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
   const vertices = ref<L.LatLng[]>([]);
   const drawingError = ref("");
   const featureName = ref("");
+  const canSavePoint = computed(() => vertices.value.length === 1);
   const canSavePath = computed(() => vertices.value.length >= 2);
   const canSaveArea = computed(() => vertices.value.length >= 3);
 
@@ -94,14 +99,20 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
   }
 
   function updateDrawingHints() {
-    if (parentFeature.value || !canSavePath.value) {
+    if (parentFeature.value || !vertices.value.length) {
       prospectiveParent.value = null;
       return;
     }
-    // The object type is chosen when saving, so both interpretations of the
-    // drawn points decide the hint: a way buffered around the line and the
-    // polygon ring closed directly.
+    // The object type is chosen when saving, so all interpretations of the
+    // drawn points decide the hint: a single point as a small circle, a way
+    // buffered around the line and the polygon ring closed directly.
     const interpretations: { parent: MapFeature | null; conflict: MapFeature | null }[] = [];
+    if (canSavePoint.value) {
+      const [point] = vertices.value;
+      interpretations.push(detectParentFeature(
+        nodeFeatureGeometry([point.lng, point.lat], POINT_RADIUS_METRES).coordinates[0].slice(0, -1),
+        options.features(), "point"));
+    }
     const pathGeometry = createPathGeometry(vertices.value.map((point) => [point.lng, point.lat]));
     if (pathGeometry)
       interpretations.push(detectParentFeature(
@@ -150,12 +161,16 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
     options.drawingLayer().clearLayers();
   }
 
-  function finishDrawing(type: "path" | "area") {
+  function finishDrawing(type: "path" | "area" | "point") {
     if (!drawing.value) return;
     if (type === "path" && !canSavePath.value) return;
     if (type === "area" && !canSaveArea.value) return;
+    if (type === "point" && !canSavePoint.value) return;
     let ring: PolygonPosition[];
-    if (type === "path") {
+    if (type === "point") {
+      const [point] = vertices.value;
+      ring = nodeFeatureGeometry([point.lng, point.lat], POINT_RADIUS_METRES).coordinates[0];
+    } else if (type === "path") {
       if (vertices.value.length > MAX_PATH_POINTS) {
         drawingError.value = t("map.pathPointLimit", { count: MAX_PATH_POINTS });
         return;
@@ -203,6 +218,7 @@ export function useFeatureDrawing(options: FeatureDrawingOptions) {
 
   return {
     drawing,
+    canSavePoint,
     canSavePath,
     canSaveArea,
     choosingParent,

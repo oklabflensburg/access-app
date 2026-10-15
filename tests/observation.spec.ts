@@ -485,8 +485,7 @@ test("assigns an observation created inside a feature as its child", async ({
     .click();
   await expect(page).toHaveURL(/\/$/);
 
-  // An observation outside any feature stays unlinked. Saving the first
-  // observation zooms the map to its point, so the outside location is
+  // An observation outside any feature stays unlinked. The outside location is
   // derived from the stored ring instead of another map press.
   const [feature] = await readMapFeatures(page);
   const ring: [number, number][] = feature.geometry.coordinates[0];
