@@ -1,5 +1,5 @@
 ---
-name: api
+name: map
 
 services:
   php:
@@ -41,7 +41,7 @@ services:
   routing:
     build:
       context: ./routing
-    image: accessapp-graphhopper:11.1
+    image: map-graphhopper:11.1
     restart: unless-stopped
     environment:
       GRAPHHOPPER_XMX: ${GRAPHHOPPER_XMX:-2g}

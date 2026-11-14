@@ -5,6 +5,41 @@ PostgreSQL/PostGIS, Doctrine DBAL and migrations, and persistent photo storage.
 
 ## Start the application
 
+The Compose project is named `map`. Containers and persistent volumes use the
+`map` prefix; locally built images are `map-php-dev`, `map-php-prod`, and
+`map-graphhopper`.
+
+### Existing installations using the `api` project name
+
+Before starting the renamed project, migrate its volumes once on each existing
+installation. Run from `backend/` with the old stack's environment settings:
+
+```bash
+docker compose -p api down --remove-orphans
+for volume in database_data photo_data caddy_data caddy_config graphhopper_graphs; do
+  docker volume inspect "api_$volume" >/dev/null || exit 1
+  if docker volume inspect "map_$volume" >/dev/null 2>&1; then
+    echo "Destination map_$volume already exists; stop and inspect it before migrating."
+    exit 1
+  fi
+done
+for volume in database_data photo_data caddy_data caddy_config graphhopper_graphs; do
+  docker volume create --label com.docker.compose.project=map \
+    --label "com.docker.compose.volume=$volume" "map_$volume" || exit 1
+  docker run --rm --network none --user 0 --entrypoint sh \
+    --mount "type=volume,source=api_$volume,target=/from,readonly" \
+    --mount "type=volume,source=map_$volume,target=/to" \
+    alpine:3.22 -c 'cp -a /from/. /to/' || exit 1
+done
+```
+
+This preserves the original `api_*` volumes and copies the database, photos,
+Caddy state, and routing graphs. Symfony's generated cache is rebuilt in the new
+container. Keep the same database credentials. For production, add
+`--env-file .env.local -f compose.yaml -f compose.prod.yaml` to Compose commands.
+
+### Start
+
 ```bash
 docker compose run --rm routing-data
 docker compose up --build --wait
